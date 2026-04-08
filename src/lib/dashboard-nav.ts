@@ -8,6 +8,7 @@ export interface NavItem {
 export const dashboardNavByRole: Record<UserRole, NavItem[]> = {
   ADMIN: [
     { label: "Dashboard", href: "/dashboard/admin" },
+    { label: "Startups", href: "/dashboard/admin/startups" },
     { label: "Users", href: "/dashboard/admin/users" },
     { label: "Projects", href: "/dashboard/admin/projects" },
   ],

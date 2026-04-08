@@ -30,7 +30,7 @@ export default function Header({
             <h1 className="text-xl font-semibold tracking-tight text-foreground md:text-2xl">
               Dashboard
             </h1>
-            <p className="text-sm text-foreground-muted">Bienvenue {user.email}</p>
+            <p className="text-sm text-foreground-muted">Bienvenue {user.firstName}</p>
           </div>
         </div>
 

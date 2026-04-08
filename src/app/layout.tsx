@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { JetBrains_Mono, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "../contexts/AuthContext";
+import { UserProvider } from "../contexts/UserContext";
+import { StartupProvider } from "../contexts/StartupContext";
 
 const spaceGrotesk = Space_Grotesk({
   subsets: ["latin"],
@@ -28,7 +30,11 @@ export default function RootLayout({
       <body
         className={`${spaceGrotesk.variable} ${jetBrainsMono.variable} font-sans antialiased`}
       >
-        <AuthProvider>{children}</AuthProvider>
+        <AuthProvider>
+          <UserProvider>
+            <StartupProvider>{children}</StartupProvider>
+          </UserProvider>
+        </AuthProvider>
       </body>
     </html>
   );

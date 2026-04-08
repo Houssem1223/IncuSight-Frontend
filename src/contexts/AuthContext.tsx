@@ -26,16 +26,43 @@ type AuthContextType = {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+async function fetchProfileWithFallback(token: string): Promise<User> {
+  const profileEndpoints = ["users/MyProfile", "users/my-profile", "users/me"];
+  let lastError: unknown = null;
+
+  for (const endpoint of profileEndpoints) {
+    try {
+      return await apiFetch<User>(endpoint, {}, token);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  if (lastError instanceof Error) {
+    throw lastError;
+  }
+
+  throw new Error("Unable to load user profile");
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [refreshToken, setRefreshToken] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
 
+  const clearAuthSession = useCallback(() => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("refreshToken");
+    setToken(null);
+    setRefreshToken(null);
+    setUser(null);
+  }, []);
+
   const loadProfile = useCallback(async () => {
     if (!token) return;
 
-    const profile = await apiFetch<User>("users/MyProfile", {}, token);
+    const profile = await fetchProfileWithFallback(token);
     setUser(profile);
   }, [token]);
 
@@ -51,7 +78,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setToken(data.token);
     setRefreshToken(data.refreshToken);
 
-    const profile = await apiFetch<User>("users/MyProfile", {}, data.token);
+    const profile = await fetchProfileWithFallback(data.token);
     setUser(profile);
   }, []);
 
@@ -68,13 +95,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     } catch {
     } finally {
-      localStorage.removeItem("token");
-      localStorage.removeItem("refreshToken");
-      setToken(null);
-      setRefreshToken(null);
-      setUser(null);
+      clearAuthSession();
     }
-  }, [token]);
+  }, [token, clearAuthSession]);
 
   useEffect(() => {
     const storedToken = localStorage.getItem("token");
@@ -95,12 +118,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (token) {
       loadProfile().catch(() => {
-        setUser(null);
+        clearAuthSession();
       }).finally(() => {
         setIsAuthReady(true);
       });
     }
-  }, [token, loadProfile]);
+  }, [token, loadProfile, clearAuthSession]);
 
   const value = useMemo(
     () => ({
