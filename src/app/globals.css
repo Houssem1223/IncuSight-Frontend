@@ -1,0 +1,116 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f5f7fb;
+  --background-accent: #edf2ff;
+  --surface: #ffffff;
+  --surface-strong: #fdf7ec;
+  --foreground: #111827;
+  --foreground-muted: #5b6475;
+  --border: #d9e0ea;
+  --ring: #0f766e;
+  --brand: #0f766e;
+  --brand-strong: #115e59;
+  --brand-contrast: #f8fffe;
+  --warning: #b45309;
+  --shadow-soft: 0 18px 45px rgba(17, 24, 39, 0.12);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-background-accent: var(--background-accent);
+  --color-surface: var(--surface);
+  --color-surface-strong: var(--surface-strong);
+  --color-foreground: var(--foreground);
+  --color-foreground-muted: var(--foreground-muted);
+  --color-border: var(--border);
+  --color-ring: var(--ring);
+  --color-brand: var(--brand);
+  --color-brand-strong: var(--brand-strong);
+  --color-brand-contrast: var(--brand-contrast);
+  --color-warning: var(--warning);
+  --font-sans: var(--font-space-grotesk);
+  --font-mono: var(--font-jetbrains-mono);
+  --shadow-soft: var(--shadow-soft);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--background);
+  background:
+    radial-gradient(circle at 0% 0%, #fff6dc 0, transparent 32%),
+    radial-gradient(circle at 100% 20%, #dff6f2 0, transparent 28%),
+    linear-gradient(
+      180deg,
+      var(--background-accent) 0%,
+      var(--background) 38%,
+      #f8fafc 100%
+    );
+  color: var(--foreground);
+  font-family: var(--font-space-grotesk), "Segoe UI", sans-serif;
+}
+
+a {
+  color: inherit;
+}
+
+::selection {
+  background: #0f766e;
+  color: #f8fffe;
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.985);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+.motion-rise {
+  animation: rise-in 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.motion-rise-delay-1 {
+  animation-delay: 90ms;
+}
+
+.motion-rise-delay-2 {
+  animation-delay: 170ms;
+}
+
+.motion-fade {
+  animation: fade-in 0.45s ease both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .motion-rise,
+  .motion-rise-delay-1,
+  .motion-rise-delay-2,
+  .motion-fade {
+    animation: none;
+  }
+}
