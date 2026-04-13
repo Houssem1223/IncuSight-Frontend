@@ -61,7 +61,14 @@ export default function AdminStartupsList() {
 
     return sortedStartups.filter((startup) => {
       const name = startup.startupName.toLowerCase();
-      const owner = startup.ownerId.toLowerCase();
+      const owner = [
+        startup.owner?.firstName || "",
+        startup.owner?.lastName || "",
+        startup.owner?.email || "",
+        startup.ownerId,
+      ]
+        .join(" ")
+        .toLowerCase();
       const sector = (startup.sector || "").toLowerCase();
       const stage = (startup.stage || "").toLowerCase();
       const status = (startup.status || "pending").toLowerCase();
@@ -77,7 +84,7 @@ export default function AdminStartupsList() {
   }, [sortedStartups, searchTerm]);
 
   return (
-    <article className="mt-6 rounded-2xl border border-border/75 bg-white/90 p-4">
+    <article className="dashboard-soft-block mt-6 p-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="text-base font-semibold text-foreground">Startups Directory</h2>
@@ -116,7 +123,7 @@ export default function AdminStartupsList() {
       )}
 
       {!isStartupsLoading && !startupsError && (
-        <div className="mt-5 overflow-hidden rounded-xl border border-border/75">
+        <div className="mt-5 overflow-hidden rounded-xl border border-border/75 bg-white/85 shadow-sm">
           <div className="overflow-x-auto">
             <table className="min-w-full text-left text-sm">
               <thead className="bg-slate-50 text-foreground-muted">
@@ -141,7 +148,11 @@ export default function AdminStartupsList() {
                   const startupName = startup.startupName;
                   const sector = startup.sector || "-";
                   const stage = startup.stage || "-";
-                  const owner = startup.ownerId;
+                  const ownerName = [startup.owner?.firstName, startup.owner?.lastName]
+                    .filter(Boolean)
+                    .join(" ")
+                    .trim();
+                  const owner = ownerName || startup.owner?.email || startup.ownerId;
                   const status = startup.status || "PENDING";
 
                   const statusClass =

@@ -1,3 +1,5 @@
+import type { User } from "./user";
+
 export type Startup = {
   id: string;
   startupName: string;
@@ -7,6 +9,7 @@ export type Startup = {
   website?: string;
   ownerId: string;
   status?: string;
+  owner?: User;
   createdAt?: string;
   updatedAt?: string;
 };

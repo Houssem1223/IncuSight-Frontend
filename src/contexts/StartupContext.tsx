@@ -28,38 +28,25 @@ type BackendMessage = {
 
 type StartupContextType = {
   startups: Startup[];
+  myStartups: Startup[];
   myStartup: Startup | null;
   isStartupsLoading: boolean;
   startupsError: string | null;
   clearStartupsError: () => void;
   fetchAllStartups: () => Promise<Startup[]>;
-  fetchMyStartup: () => Promise<Startup | null>;
+  fetchMyStartups: () => Promise<Startup[]>;
   findOneStartup: (id: string) => Promise<Startup>;
   createStartup: (payload: CreateStartupPayload) => Promise<Startup>;
-  updateMyStartup: (payload: UpdateStartupPayload) => Promise<Startup>;
-  removeMyStartup: () => Promise<BackendMessage>;
+  updateMyStartup: (startupId: string, payload: UpdateStartupPayload) => Promise<Startup>;
+  removeMyStartup: (startupId: string) => Promise<BackendMessage>;
 };
 
 const StartupContext = createContext<StartupContextType | undefined>(undefined);
 
-function isNotFoundLikeError(error: unknown): boolean {
-  if (!(error instanceof Error)) {
-    return false;
-  }
-
-  const message = error.message.toLowerCase();
-  return (
-    message.includes("not found") ||
-    message.includes("introuvable") ||
-    message.includes("no startup") ||
-    message.includes("cannot get /startup/me")
-  );
-}
-
 export function StartupProvider({ children }: { children: ReactNode }) {
   const { token } = useAuth();
   const [startups, setStartups] = useState<Startup[]>([]);
-  const [myStartup, setMyStartup] = useState<Startup | null>(null);
+  const [myStartups, setMyStartups] = useState<Startup[]>([]);
   const [isStartupsLoading, setIsStartupsLoading] = useState(false);
   const [startupsError, setStartupsError] = useState<string | null>(null);
 
@@ -89,6 +76,25 @@ export function StartupProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const upsertMyStartup = useCallback(
+    (updatedStartup: Startup) => {
+      setMyStartups((current) => {
+        const existingIndex = current.findIndex((startup) => startup.id === updatedStartup.id);
+
+        if (existingIndex === -1) {
+          return [updatedStartup, ...current];
+        }
+
+        const next = [...current];
+        next[existingIndex] = updatedStartup;
+        return next;
+      });
+
+      upsertStartup(updatedStartup);
+    },
+    [upsertStartup],
+  );
+
   const fetchAllStartups = useCallback(async () => {
     setIsStartupsLoading(true);
     setStartupsError(null);
@@ -107,30 +113,30 @@ export function StartupProvider({ children }: { children: ReactNode }) {
     }
   }, [getRequiredToken]);
 
-  const fetchMyStartup = useCallback(async () => {
+  const fetchMyStartups = useCallback(async () => {
     setIsStartupsLoading(true);
     setStartupsError(null);
 
     try {
       const authToken = getRequiredToken();
-      const startup = await apiFetch<Startup>("startup/me", {}, authToken);
-      setMyStartup(startup);
-      upsertStartup(startup);
-      return startup;
-    } catch (error) {
-      if (isNotFoundLikeError(error)) {
-        setMyStartup(null);
-        setStartupsError(null);
-        return null;
-      }
+      const ownedStartups = await apiFetch<Startup[]>("startup/me", {}, authToken);
 
-      const message = error instanceof Error ? error.message : "Failed to fetch startup";
+      setMyStartups(ownedStartups);
+      setStartups((current) => {
+        const ownedIds = new Set(ownedStartups.map((startup) => startup.id));
+        const others = current.filter((startup) => !ownedIds.has(startup.id));
+        return [...ownedStartups, ...others];
+      });
+
+      return ownedStartups;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to fetch your startups";
       setStartupsError(message);
       throw error;
     } finally {
       setIsStartupsLoading(false);
     }
-  }, [getRequiredToken, upsertStartup]);
+  }, [getRequiredToken]);
 
   const findOneStartup = useCallback(
     async (id: string) => {
@@ -154,18 +160,17 @@ export function StartupProvider({ children }: { children: ReactNode }) {
         authToken,
       );
 
-      setMyStartup(startup);
-      upsertStartup(startup);
+      upsertMyStartup(startup);
       return startup;
     },
-    [getRequiredToken, upsertStartup],
+    [getRequiredToken, upsertMyStartup],
   );
 
   const updateMyStartup = useCallback(
-    async (payload: UpdateStartupPayload) => {
+    async (startupId: string, payload: UpdateStartupPayload) => {
       const authToken = getRequiredToken();
       const startup = await apiFetch<Startup>(
-        "startup/me",
+        `startup/${startupId}`,
         {
           method: "PATCH",
           body: JSON.stringify(payload),
@@ -173,43 +178,41 @@ export function StartupProvider({ children }: { children: ReactNode }) {
         authToken,
       );
 
-      setMyStartup(startup);
-      upsertStartup(startup);
+      upsertMyStartup(startup);
       return startup;
     },
-    [getRequiredToken, upsertStartup],
+    [getRequiredToken, upsertMyStartup],
   );
 
-  const removeMyStartup = useCallback(async () => {
+  const removeMyStartup = useCallback(async (startupId: string) => {
     const authToken = getRequiredToken();
-    const previousId = myStartup?.id;
 
     const result = await apiFetch<BackendMessage>(
-      "startup/me",
+      `startup/${startupId}`,
       {
         method: "DELETE",
       },
       authToken,
     );
 
-    setMyStartup(null);
-
-    if (previousId) {
-      setStartups((current) => current.filter((startup) => startup.id !== previousId));
-    }
+    setMyStartups((current) => current.filter((startup) => startup.id !== startupId));
+    setStartups((current) => current.filter((startup) => startup.id !== startupId));
 
     return result;
-  }, [getRequiredToken, myStartup?.id]);
+  }, [getRequiredToken]);
+
+  const myStartup = myStartups[0] ?? null;
 
   const value = useMemo(
     () => ({
       startups,
+      myStartups,
       myStartup,
       isStartupsLoading,
       startupsError,
       clearStartupsError,
       fetchAllStartups,
-      fetchMyStartup,
+      fetchMyStartups,
       findOneStartup,
       createStartup,
       updateMyStartup,
@@ -217,12 +220,13 @@ export function StartupProvider({ children }: { children: ReactNode }) {
     }),
     [
       startups,
+      myStartups,
       myStartup,
       isStartupsLoading,
       startupsError,
       clearStartupsError,
       fetchAllStartups,
-      fetchMyStartup,
+      fetchMyStartups,
       findOneStartup,
       createStartup,
       updateMyStartup,

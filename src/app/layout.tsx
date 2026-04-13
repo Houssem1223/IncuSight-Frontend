@@ -4,6 +4,8 @@ import "./globals.css";
 import { AuthProvider } from "../contexts/AuthContext";
 import { UserProvider } from "../contexts/UserContext";
 import { StartupProvider } from "../contexts/StartupContext";
+import { ProgramProvider } from "../contexts/ProgramContext";
+import { ApplicationProvider } from "../contexts/ApplicationContext";
 
 const spaceGrotesk = Space_Grotesk({
   subsets: ["latin"],
@@ -32,7 +34,11 @@ export default function RootLayout({
       >
         <AuthProvider>
           <UserProvider>
-            <StartupProvider>{children}</StartupProvider>
+            <StartupProvider>
+              <ProgramProvider>
+                <ApplicationProvider>{children}</ApplicationProvider>
+              </ProgramProvider>
+            </StartupProvider>
           </UserProvider>
         </AuthProvider>
       </body>

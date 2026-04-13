@@ -11,7 +11,11 @@ import {
 } from "react";
 import type { AuthResponse, LoginPayload } from "../types/auth";
 import type { User } from "../types/user";
-import { apiFetch } from "../lib/api";
+import {
+  apiFetch,
+  AUTH_SESSION_EXPIRED_EVENT,
+  AUTH_TOKEN_UPDATED_EVENT,
+} from "../lib/api";
 
 type AuthContextType = {
   user: User | null;
@@ -25,6 +29,11 @@ type AuthContextType = {
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+type TokenUpdatedEventDetail = {
+  token: string;
+  refreshToken?: string;
+};
 
 async function fetchProfileWithFallback(token: string): Promise<User> {
   const profileEndpoints = ["users/MyProfile", "users/my-profile", "users/me"];
@@ -116,13 +125,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (token) {
-      loadProfile().catch(() => {
-        clearAuthSession();
-      }).finally(() => {
-        setIsAuthReady(true);
-      });
+    const handleTokenUpdated = (event: Event) => {
+      const customEvent = event as CustomEvent<TokenUpdatedEventDetail>;
+      const updatedToken = customEvent.detail?.token;
+      const updatedRefreshToken = customEvent.detail?.refreshToken;
+
+      if (typeof updatedToken === "string" && updatedToken) {
+        setToken(updatedToken);
+      }
+
+      if (typeof updatedRefreshToken === "string" && updatedRefreshToken) {
+        setRefreshToken(updatedRefreshToken);
+      }
+    };
+
+    const handleSessionExpired = () => {
+      clearAuthSession();
+      setIsAuthReady(true);
+    };
+
+    window.addEventListener(AUTH_TOKEN_UPDATED_EVENT, handleTokenUpdated as EventListener);
+    window.addEventListener(AUTH_SESSION_EXPIRED_EVENT, handleSessionExpired);
+
+    return () => {
+      window.removeEventListener(AUTH_TOKEN_UPDATED_EVENT, handleTokenUpdated as EventListener);
+      window.removeEventListener(AUTH_SESSION_EXPIRED_EVENT, handleSessionExpired);
+    };
+  }, [clearAuthSession]);
+
+  useEffect(() => {
+    if (!token) {
+      setIsAuthReady(true);
+      return;
     }
+
+    loadProfile().catch(() => {
+      clearAuthSession();
+    }).finally(() => {
+      setIsAuthReady(true);
+    });
   }, [token, loadProfile, clearAuthSession]);
 
   const value = useMemo(

@@ -26,15 +26,15 @@ export default function Sidebar({ role, isOpen, onClose }: SidebarProps) {
       />
 
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-72 flex-col border-r border-border/80 bg-surface/95 p-5 shadow-[var(--shadow-soft)] backdrop-blur transition-transform duration-300 md:static md:z-0 md:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-40 flex w-72 flex-col border-r border-border/80 bg-surface/92 p-5 shadow-[var(--shadow-soft)] backdrop-blur-md transition-transform duration-300 md:static md:z-0 md:translate-x-0 ${
           isOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        <div className="mb-8 rounded-2xl border border-brand/20 bg-surface-strong px-4 py-3">
-          <p className="font-mono text-xs uppercase tracking-[0.18em] text-brand-strong">
-            Medianet
+        <div className="mb-8 rounded-2xl border border-brand/25 bg-gradient-to-br from-orange-50 via-amber-50 to-white px-4 py-3">
+          <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-brand-strong">
+            MEDIANET INCUBATEUR
           </p>
-          <h2 className="mt-1 text-lg font-semibold text-foreground">IncuSight</h2>
+          <h2 className="mt-1 text-lg font-semibold text-foreground">IncuSight Platform</h2>
         </div>
 
         <nav className="flex flex-1 flex-col gap-2">
@@ -45,7 +45,7 @@ export default function Sidebar({ role, isOpen, onClose }: SidebarProps) {
               <Link
                 key={item.href}
                 href={item.href}
-                className={`rounded-xl border px-3 py-2 text-sm font-medium transition duration-200 ${
+                className={`dashboard-btn rounded-xl border px-3 py-2 text-sm font-medium duration-200 ${
                   isActive
                     ? "border-brand/30 bg-brand text-brand-contrast shadow-sm"
                     : "border-transparent text-foreground-muted hover:border-border hover:bg-surface"

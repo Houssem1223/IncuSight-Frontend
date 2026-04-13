@@ -14,12 +14,12 @@ export default function Header({
   onToggleSidebar,
 }: HeaderProps) {
   return (
-    <header className="sticky top-0 z-20 border-b border-border/70 bg-surface/80 px-4 py-3 backdrop-blur md:px-8">
+    <header className="sticky top-0 z-20 border-b border-border/70 bg-gradient-to-r from-white/92 via-surface to-orange-50/40 px-4 py-3 backdrop-blur-md md:px-8">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <button
             aria-label="Open sidebar"
-            className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-white text-foreground shadow-sm transition hover:border-brand/50 md:hidden"
+            className="dashboard-btn inline-flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-white text-foreground shadow-sm hover:border-brand/50 md:hidden"
             onClick={onToggleSidebar}
             type="button"
           >
@@ -28,14 +28,16 @@ export default function Header({
 
           <div>
             <h1 className="text-xl font-semibold tracking-tight text-foreground md:text-2xl">
-              Dashboard
+              IncuSight Dashboard
             </h1>
-            <p className="text-sm text-foreground-muted">Bienvenue {user.firstName}</p>
+            <p className="text-sm text-foreground-muted">
+              Espace MEDIANET Incubateur - Bienvenue {user.firstName}
+            </p>
           </div>
         </div>
 
         <button
-          className="rounded-xl border border-warning/20 bg-warning px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:brightness-95"
+          className="dashboard-btn rounded-xl border border-warning/20 bg-warning px-4 py-2 text-sm font-medium text-white shadow-sm hover:brightness-95"
           onClick={() => void onLogout()}
           type="button"
         >

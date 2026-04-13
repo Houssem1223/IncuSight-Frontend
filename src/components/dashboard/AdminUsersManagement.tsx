@@ -216,13 +216,13 @@ export default function AdminUsersManagement() {
 
   return (
     <RoleGuard allowedRole="ADMIN">
-      <section className="motion-rise rounded-2xl border border-border/75 bg-white/90 p-6 shadow-[var(--shadow-soft)]">
+      <section className="motion-rise dashboard-surface p-6">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <p className="font-mono text-xs uppercase tracking-[0.16em] text-brand-strong">
               Administration
             </p>
-            <h1 className="mt-2 text-3xl font-semibold tracking-tight text-foreground">
+            <h1 className="mt-2 text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
               Users Directory
             </h1>
             <p className="mt-2 text-sm text-foreground-muted">
@@ -248,7 +248,7 @@ export default function AdminUsersManagement() {
         </div>
 
         <form
-          className="mt-6 grid gap-3 rounded-2xl border border-border/75 bg-slate-50/80 p-4 md:grid-cols-6"
+          className="dashboard-soft-block mt-6 grid gap-3 p-4 md:grid-cols-6"
           onSubmit={handleCreateUser}
         >
           <h2 className="md:col-span-6 text-base font-semibold text-foreground">Create user</h2>
@@ -314,7 +314,7 @@ export default function AdminUsersManagement() {
           </select>
 
           <button
-            className="rounded-xl bg-brand px-4 py-2 text-sm font-medium text-brand-contrast transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-70"
+            className="dashboard-btn rounded-xl bg-brand px-4 py-2 text-sm font-medium text-brand-contrast hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-70"
             disabled={isCreating}
             type="submit"
           >
@@ -349,7 +349,7 @@ export default function AdminUsersManagement() {
         )}
 
         {!isUsersLoading && !usersError && (
-          <div className="mt-6 overflow-hidden rounded-xl border border-border/75">
+          <div className="mt-6 overflow-hidden rounded-xl border border-border/75 bg-white/85 shadow-sm">
             <div className="overflow-x-auto">
               <table className="min-w-full text-left text-sm">
                 <thead className="bg-slate-50 text-foreground-muted">
@@ -392,7 +392,7 @@ export default function AdminUsersManagement() {
                         <td className="px-4 py-3">
                           <div className="flex flex-wrap gap-2">
                             <button
-                              className="rounded-lg border border-border bg-white px-3 py-1.5 text-xs font-medium text-foreground transition hover:border-brand/35 hover:text-brand-strong"
+                              className="dashboard-btn rounded-lg border border-border bg-white px-3 py-1.5 text-xs font-medium text-foreground hover:border-brand/35 hover:text-brand-strong"
                               onClick={() => startEdit(user)}
                               type="button"
                             >
@@ -400,7 +400,7 @@ export default function AdminUsersManagement() {
                             </button>
 
                             <button
-                              className="rounded-lg border border-border bg-white px-3 py-1.5 text-xs font-medium text-foreground transition hover:border-brand/35 hover:text-brand-strong disabled:cursor-not-allowed disabled:opacity-70"
+                              className="dashboard-btn rounded-lg border border-border bg-white px-3 py-1.5 text-xs font-medium text-foreground hover:border-brand/35 hover:text-brand-strong disabled:cursor-not-allowed disabled:opacity-70"
                               disabled={statusLoadingUserId === user.id}
                               onClick={() => {
                                 void handleToggleAccountStatus(user);
@@ -426,7 +426,7 @@ export default function AdminUsersManagement() {
 
         {editForm && (
           <form
-            className="mt-6 grid gap-3 rounded-2xl border border-border/75 bg-white p-4 md:grid-cols-4"
+            className="dashboard-card mt-6 grid gap-3 p-4 md:grid-cols-4"
             onSubmit={handleUpdateUser}
           >
             <h2 className="md:col-span-4 text-base font-semibold text-foreground">Edit user</h2>
@@ -506,7 +506,7 @@ export default function AdminUsersManagement() {
 
             <div className="md:col-span-4 flex flex-wrap justify-end gap-2">
               <button
-                className="rounded-xl border border-border bg-white px-4 py-2 text-sm font-medium text-foreground transition hover:border-brand/35 hover:text-brand-strong"
+                className="dashboard-btn rounded-xl border border-border bg-white px-4 py-2 text-sm font-medium text-foreground hover:border-brand/35 hover:text-brand-strong"
                 onClick={cancelEdit}
                 type="button"
               >
@@ -514,7 +514,7 @@ export default function AdminUsersManagement() {
               </button>
 
               <button
-                className="rounded-xl bg-brand px-4 py-2 text-sm font-medium text-brand-contrast transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-70"
+                className="dashboard-btn rounded-xl bg-brand px-4 py-2 text-sm font-medium text-brand-contrast hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-70"
                 disabled={editingUserId === editForm.id}
                 type="submit"
               >

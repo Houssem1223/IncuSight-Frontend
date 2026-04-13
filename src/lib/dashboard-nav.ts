@@ -10,11 +10,12 @@ export const dashboardNavByRole: Record<UserRole, NavItem[]> = {
     { label: "Dashboard", href: "/dashboard/admin" },
     { label: "Startups", href: "/dashboard/admin/startups" },
     { label: "Users", href: "/dashboard/admin/users" },
-    { label: "Projects", href: "/dashboard/admin/projects" },
+    { label: "Program", href: "/dashboard/admin/program" },
+    { label: "Applications", href: "/dashboard/admin/applications" },
   ],
   STARTUP: [
     { label: "Dashboard", href: "/dashboard/startup" },
-    { label: "My Applications", href: "/dashboard/startup/applications" },
+    { label: "My Startups", href: "/dashboard/startup/applications" },
     { label: "Profile", href: "/dashboard/startup/profile" },
   ],
   EVALUATOR: [

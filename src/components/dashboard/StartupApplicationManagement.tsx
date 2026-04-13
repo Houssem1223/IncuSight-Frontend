@@ -2,9 +2,12 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import RoleGuard from "@/src/components/auth/Roleguard";
+import ConfirmDialog from "@/src/components/dashboard/ConfirmDialog";
 import { useAuth } from "@/src/contexts/AuthContext";
 import { useStartups } from "@/src/contexts/StartupContext";
 import type { Startup } from "@/src/types/startup";
+
+const MAX_STARTUPS_PER_USER = 5;
 
 type StartupFormState = {
   startupName: string;
@@ -71,11 +74,11 @@ function buildStartupPayload(form: StartupFormState) {
 export default function StartupApplicationManagement() {
   const { isAuthReady, isAuthenticated } = useAuth();
   const {
-    myStartup,
+    myStartups,
     isStartupsLoading,
     startupsError,
     clearStartupsError,
-    fetchMyStartup,
+    fetchMyStartups,
     createStartup,
     updateMyStartup,
     removeMyStartup,
@@ -83,27 +86,46 @@ export default function StartupApplicationManagement() {
 
   const [form, setForm] = useState<StartupFormState>(emptyForm);
   const [isFormVisible, setIsFormVisible] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
+  const [editingStartupId, setEditingStartupId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
+  const [deletingStartupId, setDeletingStartupId] = useState<string | null>(null);
+  const [startupToDelete, setStartupToDelete] = useState<Startup | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const canCreateMore = myStartups.length < MAX_STARTUPS_PER_USER;
+  const remainingSlots = Math.max(MAX_STARTUPS_PER_USER - myStartups.length, 0);
 
   useEffect(() => {
     if (!isAuthReady || !isAuthenticated) {
       return;
     }
 
-    void fetchMyStartup();
-  }, [isAuthReady, isAuthenticated, fetchMyStartup]);
+    void fetchMyStartups();
+  }, [isAuthReady, isAuthenticated, fetchMyStartups]);
 
   useEffect(() => {
-    if (!myStartup) {
+    if (!isFormVisible) {
       return;
     }
 
-    setForm(mapStartupToForm(myStartup));
-  }, [myStartup]);
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !isSaving) {
+        setIsFormVisible(false);
+        setEditingStartupId(null);
+        setForm(emptyForm);
+      }
+    };
+
+    window.addEventListener("keydown", handleEscape);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleEscape);
+    };
+  }, [isFormVisible, isSaving]);
 
   const resetActionFeedback = () => {
     setActionMessage(null);
@@ -111,34 +133,34 @@ export default function StartupApplicationManagement() {
   };
 
   const openCreateForm = () => {
-    clearStartupsError();
-    resetActionFeedback();
-    setIsEditing(false);
-    setForm(emptyForm);
-    setIsFormVisible(true);
-  };
-
-  const openEditForm = () => {
-    if (!myStartup) {
+    if (!canCreateMore) {
+      setActionError(`You can only submit up to ${MAX_STARTUPS_PER_USER} startups.`);
       return;
     }
 
     clearStartupsError();
     resetActionFeedback();
-    setForm(mapStartupToForm(myStartup));
-    setIsEditing(true);
+    setEditingStartupId(null);
+    setForm(emptyForm);
+    setIsFormVisible(true);
+  };
+
+  const openEditForm = (startup: Startup) => {
+    clearStartupsError();
+    resetActionFeedback();
+    setForm(mapStartupToForm(startup));
+    setEditingStartupId(startup.id);
     setIsFormVisible(true);
   };
 
   const cancelForm = () => {
-    setIsFormVisible(false);
-    setIsEditing(false);
-
-    if (myStartup) {
-      setForm(mapStartupToForm(myStartup));
-    } else {
-      setForm(emptyForm);
+    if (isSaving) {
+      return;
     }
+
+    setIsFormVisible(false);
+    setEditingStartupId(null);
+    setForm(emptyForm);
   };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -156,17 +178,18 @@ export default function StartupApplicationManagement() {
     try {
       const payload = buildStartupPayload(form);
 
-      if (isEditing && myStartup) {
-        await updateMyStartup(payload);
+      if (editingStartupId) {
+        await updateMyStartup(editingStartupId, payload);
         setActionMessage("Startup profile updated successfully.");
       } else {
         await createStartup(payload);
-        setActionMessage("Application submitted successfully.");
+        setActionMessage("Startup created successfully.");
       }
 
-      await fetchMyStartup();
+      await fetchMyStartups();
       setIsFormVisible(false);
-      setIsEditing(false);
+      setEditingStartupId(null);
+      setForm(emptyForm);
     } catch (error) {
       setActionError(error instanceof Error ? error.message : "Unable to save startup data.");
     } finally {
@@ -174,114 +197,211 @@ export default function StartupApplicationManagement() {
     }
   };
 
-  const handleDelete = async () => {
-    if (!myStartup) {
-      return;
-    }
-
-    const confirmed = window.confirm("Delete your startup application?");
-
-    if (!confirmed) {
+  const requestDelete = (startup: Startup) => {
+    if (isSaving) {
       return;
     }
 
     resetActionFeedback();
-    setIsDeleting(true);
+    setStartupToDelete(startup);
+  };
+
+  const cancelDelete = () => {
+    if (deletingStartupId) {
+      return;
+    }
+
+    setStartupToDelete(null);
+  };
+
+  const confirmDelete = async () => {
+    if (!startupToDelete) {
+      return;
+    }
+
+    const startup = startupToDelete;
+
+    setDeletingStartupId(startup.id);
 
     try {
-      await removeMyStartup();
-      setForm(emptyForm);
-      setIsFormVisible(false);
-      setIsEditing(false);
-      setActionMessage("Startup application removed.");
+      await removeMyStartup(startup.id);
+
+      if (editingStartupId === startup.id) {
+        setForm(emptyForm);
+        setIsFormVisible(false);
+        setEditingStartupId(null);
+      }
+
+      setActionMessage("Startup removed successfully.");
     } catch (error) {
       setActionError(error instanceof Error ? error.message : "Unable to remove startup.");
     } finally {
-      setIsDeleting(false);
+      setDeletingStartupId(null);
+      setStartupToDelete(null);
     }
   };
 
   return (
     <RoleGuard allowedRole="STARTUP">
-      <section className="motion-rise rounded-2xl border border-border/75 bg-white/90 p-6 shadow-[var(--shadow-soft)]">
-        <p className="font-mono text-xs uppercase tracking-[0.16em] text-brand-strong">
+      <section className="motion-rise dashboard-surface p-6">
+        <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-brand-strong">
           Startup Space
         </p>
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight text-foreground">
-          Startup Application
+        <h1 className="mt-2 text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
+          My Startups
         </h1>
         <p className="mt-2 max-w-2xl text-sm text-foreground-muted">
-          Submit your startup candidature, then update details while your dossier is under review.
+          Create up to {MAX_STARTUPS_PER_USER} startup profiles and keep them updated.
         </p>
 
-        {!myStartup && !isFormVisible && (
-          <div className="mt-5 rounded-2xl border border-brand/20 bg-brand/5 p-4">
+        <div className="mt-5 grid gap-3 md:grid-cols-[1fr_1fr_auto]">
+          <article className="dashboard-soft-block p-4">
+            <p className="text-xs uppercase tracking-[0.12em] text-foreground-muted">Created</p>
+            <p className="mt-1 text-2xl font-semibold text-foreground">{myStartups.length}</p>
+          </article>
+
+          <article className="dashboard-soft-block p-4">
+            <p className="text-xs uppercase tracking-[0.12em] text-foreground-muted">Remaining</p>
+            <p className="mt-1 text-2xl font-semibold text-foreground">{remainingSlots}</p>
+          </article>
+
+          <div className="flex items-end md:justify-end">
+            {canCreateMore && !isFormVisible && (
+              <button
+                className="dashboard-btn w-full rounded-xl bg-brand px-4 py-2 text-sm font-medium text-brand-contrast md:w-auto"
+                onClick={openCreateForm}
+                type="button"
+              >
+                Add startup
+              </button>
+            )}
+          </div>
+        </div>
+
+        {myStartups.length === 0 && !isFormVisible && (
+          <div className="dashboard-soft-block mt-5 bg-gradient-to-br from-brand/10 via-white to-sky-50 p-5">
             <p className="text-sm text-foreground-muted">
-              You have no startup application yet.
+              You have no startup yet.
             </p>
             <button
-              className="mt-3 rounded-xl bg-brand px-4 py-2 text-sm font-medium text-brand-contrast transition hover:brightness-95"
+              className="dashboard-btn mt-3 rounded-xl bg-brand px-4 py-2 text-sm font-medium text-brand-contrast hover:brightness-95"
+              disabled={!canCreateMore}
               onClick={openCreateForm}
               type="button"
             >
-              Candidater maintenant
+              Create startup
             </button>
           </div>
         )}
 
-        {myStartup && (
-          <article className="mt-5 rounded-2xl border border-border/75 bg-slate-50/70 p-4">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <h2 className="text-lg font-semibold text-foreground">{myStartup.startupName}</h2>
-                <p className="mt-1 text-sm text-foreground-muted">
-                  {myStartup.sector || "Sector not set"}
-                  {" • "}
-                  {myStartup.stage || "Stage not set"}
-                </p>
-              </div>
+        {myStartups.length > 0 && (
+          <div className="mt-5 grid gap-4">
+            {myStartups.map((startup) => {
+              const isRemoving = deletingStartupId === startup.id;
 
-              <span className="inline-flex rounded-full bg-sky-50 px-2.5 py-1 text-xs font-medium text-sky-700">
-                {myStartup.status || "PENDING"}
-              </span>
-            </div>
+              return (
+                <article
+                  className="dashboard-card group p-4"
+                  key={startup.id}
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <h2 className="text-lg font-semibold text-foreground">{startup.startupName}</h2>
+                      <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                        <span className="rounded-full border border-border bg-white px-2.5 py-1 text-foreground-muted">
+                          {startup.sector || "Sector not set"}
+                        </span>
+                        <span className="rounded-full border border-border bg-white px-2.5 py-1 text-foreground-muted">
+                          {startup.stage || "Stage not set"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
 
-            <p className="mt-3 text-sm text-foreground-muted">
-              {myStartup.description || "No description provided."}
-            </p>
+                  <p className="mt-3 text-sm text-foreground-muted">
+                    {startup.description || "No description provided."}
+                  </p>
 
-            <div className="mt-4 flex flex-wrap gap-2">
-              <button
-                className="rounded-xl border border-border bg-white px-4 py-2 text-sm font-medium text-foreground transition hover:border-brand/35 hover:text-brand-strong"
-                onClick={openEditForm}
-                type="button"
-              >
-                Edit candidature
-              </button>
-              <button
-                className="rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-70"
-                disabled={isDeleting}
-                onClick={() => {
-                  void handleDelete();
-                }}
-                type="button"
-              >
-                {isDeleting ? "Removing..." : "Remove candidature"}
-              </button>
-            </div>
-          </article>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <button
+                      className="dashboard-btn rounded-xl border border-border bg-white px-4 py-2 text-sm font-medium text-foreground hover:border-brand/35 hover:text-brand-strong"
+                      onClick={() => openEditForm(startup)}
+                      type="button"
+                    >
+                      Edit startup
+                    </button>
+                    <button
+                      className="dashboard-btn rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-70"
+                      disabled={isRemoving}
+                      onClick={() => {
+                        requestDelete(startup);
+                      }}
+                      type="button"
+                    >
+                      {isRemoving ? "Removing..." : "Remove startup"}
+                    </button>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
         )}
 
-        {(isFormVisible || (!myStartup && isStartupsLoading)) && (
+        {isStartupsLoading && myStartups.length === 0 && (
+          <div className="mt-5 space-y-2">
+            <div className="h-10 animate-pulse rounded-xl bg-slate-100" />
+            <div className="h-10 animate-pulse rounded-xl bg-slate-100" />
+          </div>
+        )}
+
+        {startupsError && (
+          <p className="mt-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            {startupsError}
+          </p>
+        )}
+
+        {actionError && (
+          <p className="mt-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            {actionError}
+          </p>
+        )}
+
+        {actionMessage && (
+          <p className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+            {actionMessage}
+          </p>
+        )}
+      </section>
+
+      {isFormVisible && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 md:p-6">
+          <button
+            aria-label="Close startup form"
+            className="absolute inset-0 bg-slate-900/45 backdrop-blur-sm"
+            onClick={cancelForm}
+            type="button"
+          />
+
           <form
-            className="mt-6 grid gap-3 rounded-2xl border border-border/75 bg-white p-4 md:grid-cols-2"
+            className="motion-rise relative z-10 grid w-full max-w-3xl gap-3 rounded-2xl border border-border/75 bg-white p-4 shadow-[0_22px_45px_rgba(24,36,51,0.3)] md:grid-cols-2 md:p-5"
             onSubmit={handleSubmit}
           >
-            <h2 className="md:col-span-2 text-base font-semibold text-foreground">
-              {isEditing ? "Update startup" : "Create startup candidature"}
-            </h2>
+            <div className="md:col-span-2 flex items-start justify-between gap-3">
+              <h2 className="text-lg font-semibold text-foreground">
+                {editingStartupId ? "Update startup" : "Create startup"}
+              </h2>
+              <button
+                aria-label="Close"
+                className="dashboard-btn rounded-lg border border-border bg-white px-2.5 py-1 text-sm font-medium text-foreground-muted hover:border-brand/35 hover:text-brand-strong"
+                onClick={cancelForm}
+                type="button"
+              >
+                x
+              </button>
+            </div>
 
             <input
+              autoFocus
               className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-foreground outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20"
               onChange={(event) =>
                 setForm((current) => ({ ...current, startupName: event.target.value }))
@@ -327,41 +447,41 @@ export default function StartupApplicationManagement() {
 
             <div className="md:col-span-2 flex flex-wrap justify-end gap-2">
               <button
-                className="rounded-xl border border-border bg-white px-4 py-2 text-sm font-medium text-foreground transition hover:border-brand/35 hover:text-brand-strong"
+                className="dashboard-btn rounded-xl border border-border bg-white px-4 py-2 text-sm font-medium text-foreground hover:border-brand/35 hover:text-brand-strong"
                 onClick={cancelForm}
                 type="button"
               >
                 Cancel
               </button>
               <button
-                className="rounded-xl bg-brand px-4 py-2 text-sm font-medium text-brand-contrast transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-70"
+                className="dashboard-btn rounded-xl bg-brand px-4 py-2 text-sm font-medium text-brand-contrast hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-70"
                 disabled={isSaving}
                 type="submit"
               >
-                {isSaving ? "Saving..." : isEditing ? "Update" : "Submit candidature"}
+                {isSaving ? "Saving..." : editingStartupId ? "Update" : "Create startup"}
               </button>
             </div>
           </form>
-        )}
+        </div>
+      )}
 
-        {startupsError && (
-          <p className="mt-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-            {startupsError}
-          </p>
-        )}
-
-        {actionError && (
-          <p className="mt-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-            {actionError}
-          </p>
-        )}
-
-        {actionMessage && (
-          <p className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
-            {actionMessage}
-          </p>
-        )}
-      </section>
+      <ConfirmDialog
+        cancelLabel="Keep startup"
+        confirmLabel="Remove startup"
+        description={
+          startupToDelete
+            ? `This will permanently remove startup \"${startupToDelete.startupName}\".`
+            : undefined
+        }
+        isConfirming={Boolean(startupToDelete && deletingStartupId === startupToDelete.id)}
+        isOpen={Boolean(startupToDelete)}
+        onCancel={cancelDelete}
+        onConfirm={() => {
+          void confirmDelete();
+        }}
+        title="Remove startup?"
+        tone="danger"
+      />
     </RoleGuard>
   );
 }
