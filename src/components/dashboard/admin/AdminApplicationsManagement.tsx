@@ -9,8 +9,11 @@ import type { Application } from "@/src/types/application";
 
 const statusOptions = ["PENDING", "ACCEPTED", "REJECTED"] as const;
 const statusFilterOptions = ["ALL", "PENDING", "ACCEPTED", "REJECTED"] as const;
+const viewModeOptions = ["TABLE", "KANBAN"] as const;
 
 type StatusFilter = (typeof statusFilterOptions)[number];
+type ViewMode = (typeof viewModeOptions)[number];
+type ApplicationStatusColumn = Exclude<StatusFilter, "ALL">;
 
 type StatusUpdateConfirmation = {
   applicationId: string;
@@ -82,6 +85,7 @@ export default function AdminApplicationsManagement() {
 
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
+  const [viewMode, setViewMode] = useState<ViewMode>("TABLE");
   const [statusDraftByApplicationId, setStatusDraftByApplicationId] = useState<
     Record<string, string>
   >({});
@@ -189,6 +193,24 @@ export default function AdminApplicationsManagement() {
     });
   }, [searchTerm, sortedApplications, statusFilter]);
 
+  const applicationsByStatus = useMemo(() => {
+    const groups: Record<ApplicationStatusColumn, Application[]> = {
+      PENDING: [],
+      ACCEPTED: [],
+      REJECTED: [],
+    };
+
+    for (const application of filteredApplications) {
+      const status = normalizeStatus(application.status);
+
+      if (status === "PENDING" || status === "ACCEPTED" || status === "REJECTED") {
+        groups[status].push(application);
+      }
+    }
+
+    return groups;
+  }, [filteredApplications]);
+
   const handleStatusUpdate = (application: Application) => {
     resetActionFeedback();
 
@@ -284,25 +306,48 @@ export default function AdminApplicationsManagement() {
           </div>
         </div>
 
-        <div className="mt-4 flex flex-wrap gap-2">
-          {statusFilterOptions.map((option) => {
-            const isActive = statusFilter === option;
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap gap-2">
+            {statusFilterOptions.map((option) => {
+              const isActive = statusFilter === option;
 
-            return (
-              <button
-                className={`dashboard-btn rounded-xl border px-3 py-1.5 text-xs font-medium ${
-                  isActive
-                    ? "border-brand/30 bg-brand text-brand-contrast"
-                    : "border-border bg-white text-foreground hover:border-brand/35 hover:text-brand-strong"
-                }`}
-                key={option}
-                onClick={() => setStatusFilter(option)}
-                type="button"
-              >
-                {option} ({statusCounts[option]})
-              </button>
-            );
-          })}
+              return (
+                <button
+                  className={`dashboard-btn rounded-xl border px-3 py-1.5 text-xs font-medium ${
+                    isActive
+                      ? "border-brand/30 bg-brand text-brand-contrast"
+                      : "border-border bg-white text-foreground hover:border-brand/35 hover:text-brand-strong"
+                  }`}
+                  key={option}
+                  onClick={() => setStatusFilter(option)}
+                  type="button"
+                >
+                  {option} ({statusCounts[option]})
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="inline-flex rounded-xl border border-border bg-white p-1">
+            {viewModeOptions.map((option) => {
+              const isActive = viewMode === option;
+
+              return (
+                <button
+                  className={`dashboard-btn rounded-lg px-3 py-1.5 text-xs font-medium ${
+                    isActive
+                      ? "bg-brand text-brand-contrast"
+                      : "text-foreground-muted hover:text-foreground"
+                  }`}
+                  key={option}
+                  onClick={() => setViewMode(option)}
+                  type="button"
+                >
+                  {option === "TABLE" ? "Tableau" : "Kanban"}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {actionMessage && (
@@ -331,7 +376,7 @@ export default function AdminApplicationsManagement() {
           </p>
         )}
 
-        {!isApplicationsLoading && !applicationsError && (
+        {!isApplicationsLoading && !applicationsError && viewMode === "TABLE" && (
           <div className="mt-6 overflow-hidden rounded-xl border border-border/75 bg-white/85 shadow-sm">
             <div className="overflow-x-auto">
               <table className="min-w-full text-left text-sm">
@@ -403,7 +448,7 @@ export default function AdminApplicationsManagement() {
                               onClick={() => handleStatusUpdate(application)}
                               type="button"
                             >
-                              {updatingApplicationId === application.id ? "Saving..." : "Save"}
+                              {updatingApplicationId === application.id ? "Enregistrement..." : "Enregistrer"}
                             </button>
                           </div>
                         </td>
@@ -416,12 +461,101 @@ export default function AdminApplicationsManagement() {
           </div>
         )}
 
+        {!isApplicationsLoading && !applicationsError && viewMode === "KANBAN" && (
+          <div className="mt-6 grid gap-4 lg:grid-cols-3">
+            {(Object.keys(applicationsByStatus) as ApplicationStatusColumn[]).map((columnStatus) => {
+              const columnApplications = applicationsByStatus[columnStatus];
+
+              return (
+                <article className="dashboard-card p-4" key={columnStatus}>
+                  <div className="flex items-center justify-between gap-2">
+                    <h2 className="text-sm font-semibold text-foreground">{columnStatus}</h2>
+                    <span className="inline-flex rounded-full border border-border bg-white px-2.5 py-1 text-xs font-medium text-foreground-muted">
+                      {columnApplications.length}
+                    </span>
+                  </div>
+
+                  {columnApplications.length === 0 && (
+                    <p className="mt-4 rounded-xl border border-dashed border-border/80 bg-slate-50 px-3 py-4 text-center text-xs text-foreground-muted">
+                      Aucun element dans cette colonne.
+                    </p>
+                  )}
+
+                  {columnApplications.length > 0 && (
+                    <div className="mt-4 space-y-3">
+                      {columnApplications.map((application) => {
+                        const currentStatus = normalizeStatus(application.status);
+                        const selectedStatus =
+                          statusDraftByApplicationId[application.id] || currentStatus;
+
+                        return (
+                          <div
+                            className="rounded-xl border border-border/75 bg-white p-3 shadow-sm"
+                            key={application.id}
+                          >
+                            <p className="text-sm font-semibold text-foreground">
+                              {getProgramLabel(application)}
+                            </p>
+                            <p className="mt-1 text-xs text-foreground-muted">
+                              Startup: {getStartupLabel(application)}
+                            </p>
+                            <p className="mt-1 text-xs text-foreground-muted">
+                              Cree le: {formatDate(application.createdAt)}
+                            </p>
+                            <p className="mt-2 line-clamp-3 text-xs text-foreground-muted">
+                              {application.motivationLetter || "-"}
+                            </p>
+
+                            <div className="mt-3 flex flex-wrap items-center gap-2">
+                              <span
+                                className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${getStatusClass(currentStatus)}`}
+                              >
+                                {currentStatus}
+                              </span>
+
+                              <select
+                                className="rounded-lg border border-border bg-white px-2.5 py-1.5 text-xs text-foreground outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20"
+                                onChange={(event) =>
+                                  setStatusDraftByApplicationId((current) => ({
+                                    ...current,
+                                    [application.id]: event.target.value,
+                                  }))
+                                }
+                                value={selectedStatus}
+                              >
+                                {statusOptions.map((status) => (
+                                  <option key={status} value={status}>
+                                    {status}
+                                  </option>
+                                ))}
+                              </select>
+
+                              <button
+                                className="dashboard-btn rounded-lg border border-border bg-white px-3 py-1.5 text-xs font-medium text-foreground hover:border-brand/35 hover:text-brand-strong disabled:cursor-not-allowed disabled:opacity-70"
+                                disabled={updatingApplicationId === application.id}
+                                onClick={() => handleStatusUpdate(application)}
+                                type="button"
+                              >
+                                {updatingApplicationId === application.id ? "Enregistrement..." : "Enregistrer"}
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </article>
+              );
+            })}
+          </div>
+        )}
+
         <ConfirmDialog
-          cancelLabel="Cancel"
-          confirmLabel="Apply status"
+          cancelLabel="Annuler"
+          confirmLabel="Confirmer"
           description={
             statusUpdateConfirmation
-              ? `Change status from ${statusUpdateConfirmation.currentStatus} to ${statusUpdateConfirmation.nextStatus} for ${statusUpdateConfirmation.startupLabel} in ${statusUpdateConfirmation.programLabel}?`
+              ? `Passer le statut de ${statusUpdateConfirmation.currentStatus} a ${statusUpdateConfirmation.nextStatus} pour ${statusUpdateConfirmation.startupLabel} dans ${statusUpdateConfirmation.programLabel} ?`
               : undefined
           }
           isConfirming={Boolean(
@@ -433,7 +567,7 @@ export default function AdminApplicationsManagement() {
           onConfirm={() => {
             void confirmStatusUpdate();
           }}
-          title="Confirm status change"
+          title="Confirmer le changement de statut"
         />
       </section>
     </RoleGuard>

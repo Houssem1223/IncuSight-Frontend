@@ -107,15 +107,19 @@ export default function StartupDashboardPage() {
     [publicPrograms],
   );
 
+  const myStartupIds = useMemo(() => new Set(myStartups.map((startup) => startup.id)), [myStartups]);
+
   const sortedMyApplications = useMemo(
     () =>
-      [...myApplications].sort((left, right) => {
+      myApplications
+        .filter((application) => myStartupIds.has(application.startupId))
+        .sort((left, right) => {
         const leftDate = new Date(left.createdAt || 0).getTime();
         const rightDate = new Date(right.createdAt || 0).getTime();
 
         return rightDate - leftDate;
       }),
-    [myApplications],
+    [myApplications, myStartupIds],
   );
 
   const applicationByProgramId = useMemo(() => {
@@ -531,11 +535,11 @@ export default function StartupDashboardPage() {
       </section>
 
       <ConfirmDialog
-        cancelLabel="Back"
-        confirmLabel="Confirm application"
+        cancelLabel="Retour"
+        confirmLabel="Confirmer"
         description={
           applyConfirmation
-            ? `Apply to \"${applyConfirmation.programTitle}\" with startup \"${applyConfirmation.startupName}\"?`
+            ? `Valider la candidature au programme \"${applyConfirmation.programTitle}\" avec la startup \"${applyConfirmation.startupName}\" ?`
             : undefined
         }
         isConfirming={Boolean(
@@ -546,15 +550,15 @@ export default function StartupDashboardPage() {
         onConfirm={() => {
           void confirmApply();
         }}
-        title="Confirm your choice"
+        title="Confirmer la candidature"
       />
 
       <ConfirmDialog
-        cancelLabel="Keep application"
-        confirmLabel="Delete pending"
+        cancelLabel="Annuler"
+        confirmLabel="Supprimer"
         description={
           deleteApplicationConfirmation
-            ? `This will delete your pending application for \"${deleteApplicationConfirmation.programLabel}\".`
+            ? `Cette action supprimera votre candidature en attente pour \"${deleteApplicationConfirmation.programLabel}\".`
             : undefined
         }
         isConfirming={Boolean(
@@ -566,7 +570,7 @@ export default function StartupDashboardPage() {
         onConfirm={() => {
           void confirmDeleteApplication();
         }}
-        title="Delete pending application?"
+        title="Supprimer cette candidature en attente ?"
         tone="danger"
       />
     </RoleGuard>

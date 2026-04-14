@@ -1,7 +1,7 @@
 "use client";
 
-import StartupApplicationManagement from "@/src/components/dashboard/StartupApplicationManagement";
+import StartupManagement from "@/src/components/dashboard/startup/StartupManagement";
 
 export default function StartupApplicationsPage() {
-  return <StartupApplicationManagement />;
+  return <StartupManagement />;
 }

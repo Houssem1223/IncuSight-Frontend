@@ -84,10 +84,15 @@ export default function AdminStartupsList() {
   }, [sortedStartups, searchTerm]);
 
   return (
-    <article className="dashboard-soft-block mt-6 p-4">
+    <section className="motion-rise dashboard-surface p-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="text-base font-semibold text-foreground">Startups Directory</h2>
+          <p className="font-mono text-xs uppercase tracking-[0.16em] text-brand-strong">
+            Administration
+          </p>
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
+            Startups Directory
+          </h1>
           <p className="mt-1 text-sm text-foreground-muted">
             {searchTerm.trim()
               ? `Showing ${filteredStartups.length} of ${startups.length} startups`
@@ -110,20 +115,20 @@ export default function AdminStartupsList() {
       </div>
 
       {isStartupsLoading && (
-        <div className="mt-5 space-y-2">
+        <div className="mt-6 space-y-2">
           <div className="h-10 animate-pulse rounded-xl bg-slate-100" />
           <div className="h-10 animate-pulse rounded-xl bg-slate-100" />
         </div>
       )}
 
       {!isStartupsLoading && startupsError && (
-        <p className="mt-5 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+        <p className="mt-6 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
           {startupsError}
         </p>
       )}
 
       {!isStartupsLoading && !startupsError && (
-        <div className="mt-5 overflow-hidden rounded-xl border border-border/75 bg-white/85 shadow-sm">
+        <div className="mt-6 overflow-hidden rounded-xl border border-border/75 bg-white/85 shadow-sm">
           <div className="overflow-x-auto">
             <table className="min-w-full text-left text-sm">
               <thead className="bg-slate-50 text-foreground-muted">
@@ -181,6 +186,6 @@ export default function AdminStartupsList() {
           </div>
         </div>
       )}
-    </article>
+    </section>
   );
 }

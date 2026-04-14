@@ -1,7 +1,7 @@
 "use client";
 
 import RoleGuard from "@/src/components/auth/Roleguard";
-import AdminStartupsList from "@/src/components/dashboard/AdminStartupsList";
+import AdminStartupsList from "@/src/components/dashboard/admin/AdminStartupsList";
 
 export default function AdminStartupsPage() {
   return (

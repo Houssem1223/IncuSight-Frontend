@@ -17,13 +17,13 @@ export default function DashboardLayout({
 
   useEffect(() => {
     if (isAuthReady && !isAuthenticated) {
-      router.push("/login");
+      router.push("/#landing-login");
     }
   }, [isAuthReady, isAuthenticated, router]);
 
   const handleLogout = async () => {
     await logout();
-    router.push("/login");
+    router.push("/#landing-login");
   };
 
   if (!isAuthReady) {

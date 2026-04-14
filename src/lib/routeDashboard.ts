@@ -7,6 +7,6 @@ export function getDashboardRoute(role?: string) {
     case "EVALUATOR":
       return "/dashboard/evaluateur";
     default:
-      return "/login";
+      return "/#landing-login";
   }
 }

@@ -1,7 +1,16 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useId, useMemo, useState } from "react";
 import RoleGuard from "@/src/components/auth/Roleguard";
+import ConfirmDialog from "@/src/components/dashboard/ConfirmDialog";
+import {
+  FormActions,
+  FormErrorMessage,
+  FormField,
+  FormInput,
+  FormModal,
+  FormSelect,
+} from "@/src/components/ui/forms";
 import { useAuth } from "@/src/contexts/AuthContext";
 import { useUsers } from "@/src/contexts/UserContext";
 import type { UserRole } from "@/src/types/auth";
@@ -21,6 +30,12 @@ type EditFormState = {
   lastName: string;
   email: string;
   role: UserRole;
+};
+
+type AccountStatusConfirmationState = {
+  id: string;
+  email: string;
+  action: "ACTIVATE" | "DEACTIVATE";
 };
 
 const roleOptions: UserRole[] = ["ADMIN", "STARTUP", "EVALUATOR"];
@@ -47,12 +62,16 @@ export default function AdminUsersManagement() {
     role: "STARTUP",
   });
   const [isCreating, setIsCreating] = useState(false);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editForm, setEditForm] = useState<EditFormState | null>(null);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [statusLoadingUserId, setStatusLoadingUserId] = useState<string | null>(null);
+  const [accountStatusConfirmation, setAccountStatusConfirmation] =
+    useState<AccountStatusConfirmationState | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const formIdPrefix = useId();
 
   const refreshUsers = useCallback(async () => {
     clearUsersError();
@@ -120,6 +139,27 @@ export default function AdminUsersManagement() {
     setActionError(null);
   };
 
+  const openCreateModal = () => {
+    clearUsersError();
+    resetActionFeedback();
+    setCreateForm({
+      firstName: "",
+      lastName: "",
+      email: "",
+      password: "",
+      role: "STARTUP",
+    });
+    setIsCreateModalOpen(true);
+  };
+
+  const closeCreateModal = () => {
+    if (isCreating) {
+      return;
+    }
+
+    setIsCreateModalOpen(false);
+  };
+
   const mapUserToEditForm = (user: User): EditFormState => ({
     id: user.id,
     firstName: user.firstName ?? "",
@@ -151,9 +191,10 @@ export default function AdminUsersManagement() {
         password: "",
         role: "STARTUP",
       });
-      setActionMessage("User created successfully.");
+      setActionMessage("Utilisateur cree avec succes.");
+      setIsCreateModalOpen(false);
     } catch (error) {
-      setActionError(error instanceof Error ? error.message : "Failed to create user.");
+      setActionError(error instanceof Error ? error.message : "Echec de creation de l'utilisateur.");
     } finally {
       setIsCreating(false);
     }
@@ -165,6 +206,10 @@ export default function AdminUsersManagement() {
   };
 
   const cancelEdit = () => {
+    if (editingUserId) {
+      return;
+    }
+
     setEditForm(null);
   };
 
@@ -186,33 +231,59 @@ export default function AdminUsersManagement() {
         role: editForm.role,
       });
 
-      setActionMessage("User updated successfully.");
+      setActionMessage("Utilisateur mis a jour avec succes.");
       setEditForm(null);
     } catch (error) {
-      setActionError(error instanceof Error ? error.message : "Failed to update user.");
+      setActionError(error instanceof Error ? error.message : "Echec de mise a jour de l'utilisateur.");
     } finally {
       setEditingUserId(null);
     }
   };
 
-  const handleToggleAccountStatus = async (user: User) => {
+  const handleToggleAccountStatus = (user: User) => {
     resetActionFeedback();
-    setStatusLoadingUserId(user.id);
+    setAccountStatusConfirmation({
+      id: user.id,
+      email: user.email,
+      action: user.isActive === false ? "ACTIVATE" : "DEACTIVATE",
+    });
+  };
+
+  const cancelAccountStatusChange = () => {
+    if (statusLoadingUserId) {
+      return;
+    }
+
+    setAccountStatusConfirmation(null);
+  };
+
+  const confirmAccountStatusChange = async () => {
+    if (!accountStatusConfirmation) {
+      return;
+    }
+
+    resetActionFeedback();
+    setStatusLoadingUserId(accountStatusConfirmation.id);
 
     try {
-      if (user.isActive === false) {
-        await activateAccount(user.id);
-        setActionMessage(`User ${user.email} activated.`);
+      if (accountStatusConfirmation.action === "ACTIVATE") {
+        await activateAccount(accountStatusConfirmation.id);
+        setActionMessage(`Utilisateur ${accountStatusConfirmation.email} active.`);
       } else {
-        await deactivateAccount(user.id);
-        setActionMessage(`User ${user.email} deactivated.`);
+        await deactivateAccount(accountStatusConfirmation.id);
+        setActionMessage(`Utilisateur ${accountStatusConfirmation.email} desactive.`);
       }
+
+      setAccountStatusConfirmation(null);
     } catch (error) {
-      setActionError(error instanceof Error ? error.message : "Failed to update status.");
+      setActionError(error instanceof Error ? error.message : "Echec de mise a jour du statut.");
     } finally {
       setStatusLoadingUserId(null);
     }
   };
+
+  const createFieldId = (field: string) => `${formIdPrefix}-create-${field}`;
+  const editFieldId = (field: string) => `${formIdPrefix}-edit-${field}`;
 
   return (
     <RoleGuard allowedRole="ADMIN">
@@ -222,105 +293,37 @@ export default function AdminUsersManagement() {
             <p className="font-mono text-xs uppercase tracking-[0.16em] text-brand-strong">
               Administration
             </p>
-            <h1 className="mt-2 text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
-              Users Directory
-            </h1>
+            <h1 className="mt-2 text-3xl font-semibold tracking-tight text-foreground md:text-4xl">Gestion des utilisateurs</h1>
             <p className="mt-2 text-sm text-foreground-muted">
               {searchTerm.trim()
-                ? `Showing ${filteredUsers.length} of ${users.length} users`
-                : `Total users: ${users.length}`}
+                ? `${filteredUsers.length} sur ${users.length} utilisateurs affiches`
+                : `Total utilisateurs: ${users.length}`}
             </p>
           </div>
 
           <div className="w-full max-w-sm">
             <label className="mb-2 block text-xs font-medium uppercase tracking-[0.14em] text-foreground-muted">
-              Search
+              Recherche
             </label>
             <input
               className="w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-foreground outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20"
               onChange={(event) => setSearchTerm(event.target.value)}
-              placeholder="Name, email, role, status..."
+              placeholder="Nom, email, role, statut..."
               type="text"
               value={searchTerm}
             />
-            
           </div>
         </div>
 
-        <form
-          className="dashboard-soft-block mt-6 grid gap-3 p-4 md:grid-cols-6"
-          onSubmit={handleCreateUser}
-        >
-          <h2 className="md:col-span-6 text-base font-semibold text-foreground">Create user</h2>
-
-          <input
-            className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-foreground outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20"
-            onChange={(event) =>
-              setCreateForm((current) => ({ ...current, firstName: event.target.value }))
-            }
-            placeholder="First name"
-            type="text"
-            value={createForm.firstName}
-          />
-
-          <input
-            className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-foreground outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20"
-            onChange={(event) =>
-              setCreateForm((current) => ({ ...current, lastName: event.target.value }))
-            }
-            placeholder="Last name"
-            type="text"
-            value={createForm.lastName}
-          />
-
-          <input
-            className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-foreground outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20"
-            onChange={(event) =>
-              setCreateForm((current) => ({ ...current, email: event.target.value }))
-            }
-            placeholder="Email"
-            required
-            type="email"
-            value={createForm.email}
-          />
-
-          <input
-            className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-foreground outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20"
-            minLength={6}
-            onChange={(event) =>
-              setCreateForm((current) => ({ ...current, password: event.target.value }))
-            }
-            placeholder="Password"
-            required
-            type="password"
-            value={createForm.password}
-          />
-
-          <select
-            className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-foreground outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20"
-            onChange={(event) =>
-              setCreateForm((current) => ({
-                ...current,
-                role: event.target.value as UserRole,
-              }))
-            }
-            value={createForm.role}
-          >
-            {roleOptions.map((role) => (
-              <option key={role} value={role}>
-                {role}
-              </option>
-            ))}
-          </select>
-
+        <div className="mt-6 flex justify-end">
           <button
-            className="dashboard-btn rounded-xl bg-brand px-4 py-2 text-sm font-medium text-brand-contrast hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-70"
-            disabled={isCreating}
-            type="submit"
+            className="dashboard-btn rounded-xl bg-brand px-4 py-2 text-sm font-medium text-brand-contrast hover:brightness-95"
+            onClick={openCreateModal}
+            type="button"
           >
-            {isCreating ? "Creating..." : "Create"}
+            Creer un utilisateur
           </button>
-        </form>
+        </div>
 
         {actionMessage && (
           <p className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
@@ -354,10 +357,10 @@ export default function AdminUsersManagement() {
               <table className="min-w-full text-left text-sm">
                 <thead className="bg-slate-50 text-foreground-muted">
                   <tr>
-                    <th className="px-4 py-3 font-medium">Name</th>
+                    <th className="px-4 py-3 font-medium">Nom</th>
                     <th className="px-4 py-3 font-medium">Email</th>
                     <th className="px-4 py-3 font-medium">Role</th>
-                    <th className="px-4 py-3 font-medium">Status</th>
+                    <th className="px-4 py-3 font-medium">Statut</th>
                     <th className="px-4 py-3 font-medium">Actions</th>
                   </tr>
                 </thead>
@@ -365,7 +368,7 @@ export default function AdminUsersManagement() {
                   {filteredUsers.length === 0 && (
                     <tr>
                       <td className="px-4 py-6 text-center text-foreground-muted" colSpan={5}>
-                        {searchTerm.trim() ? "No matching users found." : "No users found."}
+                        {searchTerm.trim() ? "Aucun utilisateur correspondant." : "Aucun utilisateur."}
                       </td>
                     </tr>
                   )}
@@ -386,7 +389,7 @@ export default function AdminUsersManagement() {
                                 : "bg-emerald-50 text-emerald-700"
                             }`}
                           >
-                            {user.isActive === false ? "Inactive" : "Active"}
+                            {user.isActive === false ? "Inactif" : "Actif"}
                           </span>
                         </td>
                         <td className="px-4 py-3">
@@ -396,7 +399,7 @@ export default function AdminUsersManagement() {
                               onClick={() => startEdit(user)}
                               type="button"
                             >
-                              Edit
+                              Modifier
                             </button>
 
                             <button
@@ -408,10 +411,10 @@ export default function AdminUsersManagement() {
                               type="button"
                             >
                               {statusLoadingUserId === user.id
-                                ? "Saving..."
+                                ? "Enregistrement..."
                                 : user.isActive === false
-                                  ? "Activate"
-                                  : "Deactivate"}
+                                  ? "Activer"
+                                  : "Desactiver"}
                             </button>
                           </div>
                         </td>
@@ -424,15 +427,23 @@ export default function AdminUsersManagement() {
           </div>
         )}
 
-        {editForm && (
-          <form
-            className="dashboard-card mt-6 grid gap-3 p-4 md:grid-cols-4"
-            onSubmit={handleUpdateUser}
-          >
-            <h2 className="md:col-span-4 text-base font-semibold text-foreground">Edit user</h2>
+      </section>
 
-            <input
-              className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-foreground outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20"
+      {editForm && (
+        <FormModal
+          description="Mettez a jour les informations du compte."
+          isBusy={Boolean(editingUserId)}
+          isOpen={Boolean(editForm)}
+          onClose={cancelEdit}
+          onSubmit={handleUpdateUser}
+          title="Modifier utilisateur"
+        >
+          <FormErrorMessage message={actionError} />
+
+          <FormField htmlFor={editFieldId("firstName")} label="Prenom">
+            <FormInput
+              autoFocus
+              id={editFieldId("firstName")}
               onChange={(event) =>
                 setEditForm((current) =>
                   current
@@ -443,13 +454,15 @@ export default function AdminUsersManagement() {
                     : current,
                 )
               }
-              placeholder="First name"
+              placeholder="Prenom"
               type="text"
               value={editForm.firstName}
             />
+          </FormField>
 
-            <input
-              className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-foreground outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20"
+          <FormField htmlFor={editFieldId("lastName")} label="Nom">
+            <FormInput
+              id={editFieldId("lastName")}
               onChange={(event) =>
                 setEditForm((current) =>
                   current
@@ -460,13 +473,15 @@ export default function AdminUsersManagement() {
                     : current,
                 )
               }
-              placeholder="Last name"
+              placeholder="Nom"
               type="text"
               value={editForm.lastName}
             />
+          </FormField>
 
-            <input
-              className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-foreground outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20"
+          <FormField htmlFor={editFieldId("email")} label="Email" required>
+            <FormInput
+              id={editFieldId("email")}
               onChange={(event) =>
                 setEditForm((current) =>
                   current
@@ -482,9 +497,11 @@ export default function AdminUsersManagement() {
               type="email"
               value={editForm.email}
             />
+          </FormField>
 
-            <select
-              className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-foreground outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20"
+          <FormField htmlFor={editFieldId("role")} label="Role" required>
+            <FormSelect
+              id={editFieldId("role")}
               onChange={(event) =>
                 setEditForm((current) =>
                   current
@@ -495,6 +512,7 @@ export default function AdminUsersManagement() {
                     : current,
                 )
               }
+              required
               value={editForm.role}
             >
               {roleOptions.map((role) => (
@@ -502,28 +520,158 @@ export default function AdminUsersManagement() {
                   {role}
                 </option>
               ))}
-            </select>
+            </FormSelect>
+          </FormField>
 
-            <div className="md:col-span-4 flex flex-wrap justify-end gap-2">
-              <button
-                className="dashboard-btn rounded-xl border border-border bg-white px-4 py-2 text-sm font-medium text-foreground hover:border-brand/35 hover:text-brand-strong"
-                onClick={cancelEdit}
-                type="button"
-              >
-                Cancel
-              </button>
+          <FormActions>
+            <button
+              className="dashboard-btn rounded-xl border border-border bg-white px-4 py-2 text-sm font-medium text-foreground hover:border-brand/35 hover:text-brand-strong disabled:cursor-not-allowed disabled:opacity-70"
+              disabled={Boolean(editingUserId)}
+              onClick={cancelEdit}
+              type="button"
+            >
+              Annuler
+            </button>
 
-              <button
-                className="dashboard-btn rounded-xl bg-brand px-4 py-2 text-sm font-medium text-brand-contrast hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-70"
-                disabled={editingUserId === editForm.id}
-                type="submit"
-              >
-                {editingUserId === editForm.id ? "Saving..." : "Save changes"}
-              </button>
-            </div>
-          </form>
+            <button
+              className="dashboard-btn rounded-xl bg-brand px-4 py-2 text-sm font-medium text-brand-contrast hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-70"
+              disabled={editingUserId === editForm.id}
+              type="submit"
+            >
+              {editingUserId === editForm.id ? "Enregistrement..." : "Enregistrer"}
+            </button>
+          </FormActions>
+        </FormModal>
+      )}
+
+      <FormModal
+        description="Formulaire rapide, clair et fluide pour ajouter un compte."
+        isBusy={isCreating}
+        isOpen={isCreateModalOpen}
+        onClose={closeCreateModal}
+        onSubmit={handleCreateUser}
+        title="Creer un utilisateur"
+      >
+        <FormErrorMessage message={actionError} />
+
+        <FormField htmlFor={createFieldId("firstName")} label="Prenom">
+          <FormInput
+            autoFocus
+            id={createFieldId("firstName")}
+            onChange={(event) =>
+              setCreateForm((current) => ({ ...current, firstName: event.target.value }))
+            }
+            placeholder="Prenom"
+            type="text"
+            value={createForm.firstName}
+          />
+        </FormField>
+
+        <FormField htmlFor={createFieldId("lastName")} label="Nom">
+          <FormInput
+            id={createFieldId("lastName")}
+            onChange={(event) =>
+              setCreateForm((current) => ({ ...current, lastName: event.target.value }))
+            }
+            placeholder="Nom"
+            type="text"
+            value={createForm.lastName}
+          />
+        </FormField>
+
+        <FormField htmlFor={createFieldId("email")} label="Email" required>
+          <FormInput
+            id={createFieldId("email")}
+            onChange={(event) =>
+              setCreateForm((current) => ({ ...current, email: event.target.value }))
+            }
+            placeholder="Email"
+            required
+            type="email"
+            value={createForm.email}
+          />
+        </FormField>
+
+        <FormField htmlFor={createFieldId("password")} label="Mot de passe" required>
+          <FormInput
+            id={createFieldId("password")}
+            minLength={6}
+            onChange={(event) =>
+              setCreateForm((current) => ({ ...current, password: event.target.value }))
+            }
+            placeholder="Mot de passe"
+            required
+            type="password"
+            value={createForm.password}
+          />
+        </FormField>
+
+        <FormField htmlFor={createFieldId("role")} label="Role" required>
+          <FormSelect
+            id={createFieldId("role")}
+            onChange={(event) =>
+              setCreateForm((current) => ({
+                ...current,
+                role: event.target.value as UserRole,
+              }))
+            }
+            required
+            value={createForm.role}
+          >
+            {roleOptions.map((role) => (
+              <option key={role} value={role}>
+                {role}
+              </option>
+            ))}
+          </FormSelect>
+        </FormField>
+
+        <FormActions>
+          <button
+            className="dashboard-btn rounded-xl border border-border bg-white px-4 py-2 text-sm font-medium text-foreground hover:border-brand/35 hover:text-brand-strong"
+            onClick={closeCreateModal}
+            type="button"
+          >
+            Annuler
+          </button>
+
+          <button
+            className="dashboard-btn rounded-xl bg-brand px-4 py-2 text-sm font-medium text-brand-contrast hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-70"
+            disabled={isCreating}
+            type="submit"
+          >
+            {isCreating ? "Creation..." : "Creer"}
+          </button>
+        </FormActions>
+      </FormModal>
+
+      <ConfirmDialog
+        cancelLabel="Annuler"
+        confirmLabel={
+          accountStatusConfirmation?.action === "ACTIVATE" ? "Activer" : "Desactiver"
+        }
+        description={
+          accountStatusConfirmation
+            ? accountStatusConfirmation.action === "ACTIVATE"
+              ? `Voulez-vous vraiment activer le compte ${accountStatusConfirmation.email} ?`
+              : `Voulez-vous vraiment desactiver le compte ${accountStatusConfirmation.email} ?`
+            : undefined
+        }
+        isConfirming={Boolean(
+          accountStatusConfirmation && statusLoadingUserId === accountStatusConfirmation.id,
         )}
-      </section>
+        isOpen={Boolean(accountStatusConfirmation)}
+        onCancel={cancelAccountStatusChange}
+        onConfirm={() => {
+          void confirmAccountStatusChange();
+        }}
+        title={
+          accountStatusConfirmation?.action === "ACTIVATE"
+            ? "Confirmer l'activation ?"
+            : "Confirmer la desactivation ?"
+        }
+        tone={accountStatusConfirmation?.action === "ACTIVATE" ? "brand" : "danger"}
+      />
     </RoleGuard>
   );
 }

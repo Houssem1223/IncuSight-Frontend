@@ -16,6 +16,7 @@ export const dashboardNavByRole: Record<UserRole, NavItem[]> = {
   STARTUP: [
     { label: "Dashboard", href: "/dashboard/startup" },
     { label: "My Startups", href: "/dashboard/startup/applications" },
+    { label: "My Candidatures", href: "/dashboard/startup/candidatures" },
     { label: "Profile", href: "/dashboard/startup/profile" },
   ],
   EVALUATOR: [

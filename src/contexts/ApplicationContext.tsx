@@ -4,6 +4,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
@@ -46,11 +47,18 @@ type ApplicationContextType = {
 const ApplicationContext = createContext<ApplicationContextType | undefined>(undefined);
 
 export function ApplicationProvider({ children }: { children: ReactNode }) {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [applications, setApplications] = useState<Application[]>([]);
   const [myApplications, setMyApplications] = useState<Application[]>([]);
   const [isApplicationsLoading, setIsApplicationsLoading] = useState(false);
   const [applicationsError, setApplicationsError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setApplications([]);
+    setMyApplications([]);
+    setApplicationsError(null);
+    setIsApplicationsLoading(false);
+  }, [user?.id]);
 
   const clearApplicationsError = useCallback(() => {
     setApplicationsError(null);
@@ -79,6 +87,12 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
   const upsertApplication = useCallback(
     (updated: Application) => {
       setApplications((current) => upsertInList(current, updated));
+    },
+    [upsertInList],
+  );
+
+  const upsertMyApplication = useCallback(
+    (updated: Application) => {
       setMyApplications((current) => upsertInList(current, updated));
     },
     [upsertInList],
@@ -134,10 +148,10 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
     async (id: string) => {
       const authToken = getRequiredToken();
       const data = await apiFetch<Application>(`application/me/${id}`, {}, authToken);
-      upsertApplication(data);
+      upsertMyApplication(data);
       return data;
     },
-    [getRequiredToken, upsertApplication],
+    [getRequiredToken, upsertMyApplication],
   );
 
   const createApplication = useCallback(
@@ -152,10 +166,11 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
         authToken,
       );
 
+      upsertMyApplication(created);
       upsertApplication(created);
       return created;
     },
-    [getRequiredToken, upsertApplication],
+    [getRequiredToken, upsertApplication, upsertMyApplication],
   );
 
   const removeMyApplication = useCallback(
@@ -190,9 +205,18 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
       );
 
       upsertApplication(updated);
+      setMyApplications((current) => {
+        const existsInMine = current.some((application) => application.id === updated.id);
+
+        if (!existsInMine) {
+          return current;
+        }
+
+        return upsertInList(current, updated);
+      });
       return updated;
     },
-    [getRequiredToken, upsertApplication],
+    [getRequiredToken, upsertApplication, upsertInList],
   );
 
   const value = useMemo(

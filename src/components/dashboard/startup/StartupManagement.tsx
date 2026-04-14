@@ -1,8 +1,16 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useId, useState } from "react";
 import RoleGuard from "@/src/components/auth/Roleguard";
 import ConfirmDialog from "@/src/components/dashboard/ConfirmDialog";
+import {
+  FormActions,
+  FormErrorMessage,
+  FormField,
+  FormInput,
+  FormModal,
+  FormTextarea,
+} from "@/src/components/ui/forms";
 import { useAuth } from "@/src/contexts/AuthContext";
 import { useStartups } from "@/src/contexts/StartupContext";
 import type { Startup } from "@/src/types/startup";
@@ -71,7 +79,7 @@ function buildStartupPayload(form: StartupFormState) {
   return payload;
 }
 
-export default function StartupApplicationManagement() {
+export default function StartupManagement() {
   const { isAuthReady, isAuthenticated } = useAuth();
   const {
     myStartups,
@@ -92,6 +100,7 @@ export default function StartupApplicationManagement() {
   const [startupToDelete, setStartupToDelete] = useState<Startup | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const formIdPrefix = useId();
   const canCreateMore = myStartups.length < MAX_STARTUPS_PER_USER;
   const remainingSlots = Math.max(MAX_STARTUPS_PER_USER - myStartups.length, 0);
 
@@ -102,30 +111,6 @@ export default function StartupApplicationManagement() {
 
     void fetchMyStartups();
   }, [isAuthReady, isAuthenticated, fetchMyStartups]);
-
-  useEffect(() => {
-    if (!isFormVisible) {
-      return;
-    }
-
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !isSaving) {
-        setIsFormVisible(false);
-        setEditingStartupId(null);
-        setForm(emptyForm);
-      }
-    };
-
-    window.addEventListener("keydown", handleEscape);
-
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", handleEscape);
-    };
-  }, [isFormVisible, isSaving]);
 
   const resetActionFeedback = () => {
     setActionMessage(null);
@@ -241,17 +226,17 @@ export default function StartupApplicationManagement() {
     }
   };
 
+  const fieldId = (field: string) => `${formIdPrefix}-${field}`;
+
   return (
     <RoleGuard allowedRole="STARTUP">
       <section className="motion-rise dashboard-surface p-6">
-        <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-brand-strong">
-          Startup Space
-        </p>
+        <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-brand-strong">Startup Space</p>
         <h1 className="mt-2 text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
           My Startups
         </h1>
         <p className="mt-2 max-w-2xl text-sm text-foreground-muted">
-          Create up to {MAX_STARTUPS_PER_USER} startup profiles and keep them updated.
+          Cree jusqu'a {MAX_STARTUPS_PER_USER} profils startup et garde-les a jour.
         </p>
 
         <div className="mt-5 grid gap-3 md:grid-cols-[1fr_1fr_auto]">
@@ -272,7 +257,7 @@ export default function StartupApplicationManagement() {
                 onClick={openCreateForm}
                 type="button"
               >
-                Add startup
+                Ajouter une startup
               </button>
             )}
           </div>
@@ -280,16 +265,14 @@ export default function StartupApplicationManagement() {
 
         {myStartups.length === 0 && !isFormVisible && (
           <div className="dashboard-soft-block mt-5 bg-gradient-to-br from-brand/10 via-white to-sky-50 p-5">
-            <p className="text-sm text-foreground-muted">
-              You have no startup yet.
-            </p>
+            <p className="text-sm text-foreground-muted">Vous n'avez pas encore de startup.</p>
             <button
               className="dashboard-btn mt-3 rounded-xl bg-brand px-4 py-2 text-sm font-medium text-brand-contrast hover:brightness-95"
               disabled={!canCreateMore}
               onClick={openCreateForm}
               type="button"
             >
-              Create startup
+              Creer une startup
             </button>
           </div>
         )}
@@ -319,7 +302,7 @@ export default function StartupApplicationManagement() {
                   </div>
 
                   <p className="mt-3 text-sm text-foreground-muted">
-                    {startup.description || "No description provided."}
+                    {startup.description || "Aucune description fournie."}
                   </p>
 
                   <div className="mt-4 flex flex-wrap gap-2">
@@ -328,7 +311,7 @@ export default function StartupApplicationManagement() {
                       onClick={() => openEditForm(startup)}
                       type="button"
                     >
-                      Edit startup
+                      Modifier
                     </button>
                     <button
                       className="dashboard-btn rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-70"
@@ -338,7 +321,7 @@ export default function StartupApplicationManagement() {
                       }}
                       type="button"
                     >
-                      {isRemoving ? "Removing..." : "Remove startup"}
+                      {isRemoving ? "Suppression..." : "Supprimer"}
                     </button>
                   </div>
                 </article>
@@ -373,104 +356,95 @@ export default function StartupApplicationManagement() {
         )}
       </section>
 
-      {isFormVisible && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 md:p-6">
+      <FormModal
+        description="Formulaire moderne, fluide et coherent pour votre startup."
+        isBusy={isSaving}
+        isOpen={isFormVisible}
+        onClose={cancelForm}
+        onSubmit={handleSubmit}
+        title={editingStartupId ? "Modifier la startup" : "Creer une startup"}
+      >
+        <FormErrorMessage message={actionError} />
+
+        <FormField htmlFor={fieldId("startupName")} label="Nom de la startup" required>
+          <FormInput
+            autoFocus
+            id={fieldId("startupName")}
+            onChange={(event) =>
+              setForm((current) => ({ ...current, startupName: event.target.value }))
+            }
+            placeholder="Nom de la startup"
+            required
+            type="text"
+            value={form.startupName}
+          />
+        </FormField>
+
+        <FormField htmlFor={fieldId("sector")} label="Secteur">
+          <FormInput
+            id={fieldId("sector")}
+            onChange={(event) => setForm((current) => ({ ...current, sector: event.target.value }))}
+            placeholder="Secteur"
+            type="text"
+            value={form.sector}
+          />
+        </FormField>
+
+        <FormField htmlFor={fieldId("stage")} label="Stade">
+          <FormInput
+            id={fieldId("stage")}
+            onChange={(event) => setForm((current) => ({ ...current, stage: event.target.value }))}
+            placeholder="Stade"
+            type="text"
+            value={form.stage}
+          />
+        </FormField>
+
+        <FormField htmlFor={fieldId("website")} label="Site web">
+          <FormInput
+            id={fieldId("website")}
+            onChange={(event) => setForm((current) => ({ ...current, website: event.target.value }))}
+            placeholder="https://votre-site.com"
+            type="url"
+            value={form.website}
+          />
+        </FormField>
+
+        <FormField htmlFor={fieldId("description")} label="Description">
+          <FormTextarea
+            id={fieldId("description")}
+            onChange={(event) =>
+              setForm((current) => ({ ...current, description: event.target.value }))
+            }
+            placeholder="Decrivez votre startup"
+            value={form.description}
+          />
+        </FormField>
+
+        <FormActions>
           <button
-            aria-label="Close startup form"
-            className="absolute inset-0 bg-slate-900/45 backdrop-blur-sm"
+            className="dashboard-btn rounded-xl border border-border bg-white px-4 py-2 text-sm font-medium text-foreground hover:border-brand/35 hover:text-brand-strong"
             onClick={cancelForm}
             type="button"
-          />
-
-          <form
-            className="motion-rise relative z-10 grid w-full max-w-3xl gap-3 rounded-2xl border border-border/75 bg-white p-4 shadow-[0_22px_45px_rgba(24,36,51,0.3)] md:grid-cols-2 md:p-5"
-            onSubmit={handleSubmit}
           >
-            <div className="md:col-span-2 flex items-start justify-between gap-3">
-              <h2 className="text-lg font-semibold text-foreground">
-                {editingStartupId ? "Update startup" : "Create startup"}
-              </h2>
-              <button
-                aria-label="Close"
-                className="dashboard-btn rounded-lg border border-border bg-white px-2.5 py-1 text-sm font-medium text-foreground-muted hover:border-brand/35 hover:text-brand-strong"
-                onClick={cancelForm}
-                type="button"
-              >
-                x
-              </button>
-            </div>
-
-            <input
-              autoFocus
-              className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-foreground outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20"
-              onChange={(event) =>
-                setForm((current) => ({ ...current, startupName: event.target.value }))
-              }
-              placeholder="Startup name"
-              required
-              type="text"
-              value={form.startupName}
-            />
-
-            <input
-              className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-foreground outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20"
-              onChange={(event) => setForm((current) => ({ ...current, sector: event.target.value }))}
-              placeholder="Sector"
-              type="text"
-              value={form.sector}
-            />
-
-            <input
-              className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-foreground outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20"
-              onChange={(event) => setForm((current) => ({ ...current, stage: event.target.value }))}
-              placeholder="Stage"
-              type="text"
-              value={form.stage}
-            />
-
-            <input
-              className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-foreground outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20"
-              onChange={(event) => setForm((current) => ({ ...current, website: event.target.value }))}
-              placeholder="Website"
-              type="url"
-              value={form.website}
-            />
-
-            <textarea
-              className="md:col-span-2 min-h-28 rounded-xl border border-border bg-white px-3 py-2 text-sm text-foreground outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20"
-              onChange={(event) =>
-                setForm((current) => ({ ...current, description: event.target.value }))
-              }
-              placeholder="Describe your startup"
-              value={form.description}
-            />
-
-            <div className="md:col-span-2 flex flex-wrap justify-end gap-2">
-              <button
-                className="dashboard-btn rounded-xl border border-border bg-white px-4 py-2 text-sm font-medium text-foreground hover:border-brand/35 hover:text-brand-strong"
-                onClick={cancelForm}
-                type="button"
-              >
-                Cancel
-              </button>
-              <button
-                className="dashboard-btn rounded-xl bg-brand px-4 py-2 text-sm font-medium text-brand-contrast hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-70"
-                disabled={isSaving}
-                type="submit"
-              >
-                {isSaving ? "Saving..." : editingStartupId ? "Update" : "Create startup"}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
+            Annuler
+          </button>
+          <button
+            className="dashboard-btn rounded-xl bg-brand px-4 py-2 text-sm font-medium text-brand-contrast hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-70"
+            disabled={isSaving}
+            type="submit"
+          >
+            {isSaving ? "Enregistrement..." : editingStartupId ? "Mettre a jour" : "Creer"}
+          </button>
+        </FormActions>
+      </FormModal>
 
       <ConfirmDialog
-        cancelLabel="Keep startup"
-        confirmLabel="Remove startup"
+        cancelLabel="Annuler"
+        confirmLabel="Supprimer"
         description={
           startupToDelete
-            ? `This will permanently remove startup \"${startupToDelete.startupName}\".`
+            ? `Cette action supprimera definitivement la startup \"${startupToDelete.startupName}\".`
             : undefined
         }
         isConfirming={Boolean(startupToDelete && deletingStartupId === startupToDelete.id)}
@@ -479,7 +453,7 @@ export default function StartupApplicationManagement() {
         onConfirm={() => {
           void confirmDelete();
         }}
-        title="Remove startup?"
+        title="Supprimer cette startup ?"
         tone="danger"
       />
     </RoleGuard>
