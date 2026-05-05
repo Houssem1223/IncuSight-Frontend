@@ -95,10 +95,10 @@ export default function StartupCandidaturesList() {
     <RoleGuard allowedRole="STARTUP">
       <section className="motion-rise dashboard-surface p-6">
         <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-brand-strong">
-          Startup Space
+          Espace Startup 
         </p>
         <h1 className="mt-2 text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
-          My Candidatures
+          Mes Candidatures
         </h1>
         <p className="mt-2 max-w-2xl text-sm text-foreground-muted">
           Liste de vos candidatures liees a vos startups.

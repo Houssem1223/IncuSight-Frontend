@@ -59,6 +59,18 @@ export default function AdminDashboardPage() {
           >
             Open Applications
           </Link>
+          <Link
+            className="dashboard-btn inline-flex rounded-xl border border-border bg-white px-4 py-2 text-sm font-medium text-foreground hover:border-brand/35 hover:text-brand-strong"
+            href="/dashboard/admin/application-evaluators"
+          >
+            Open Evaluator Assignment
+          </Link>
+          <Link
+            className="dashboard-btn inline-flex rounded-xl border border-border bg-white px-4 py-2 text-sm font-medium text-foreground hover:border-brand/35 hover:text-brand-strong"
+            href="/dashboard/admin/application-evaluations"
+          >
+            Open Reviews Summary
+          </Link>
         </div>
 
         <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">

@@ -34,6 +34,19 @@ function formatDate(value: string) {
   return new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium" }).format(date);
 }
 
+function formatDateTime(value: string) {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "-";
+  }
+
+  return new Intl.DateTimeFormat("fr-FR", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(date);
+}
+
 function normalizeStatus(status?: string) {
   return (status || "PENDING").toUpperCase();
 }
@@ -290,10 +303,10 @@ export default function StartupDashboardPage() {
           MEDIANET incubateur
         </p>
         <h1 className="mt-2 text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
-          L'incubateur d'innovation pour les startups
+          L&apos;incubateur d&apos;innovation pour les startups
         </h1>
         <p className="mt-2 max-w-2xl text-sm text-foreground-muted">
-          Co-creation de valeur dans l'ecosysteme entrepreneurial tunisien. Choisis une startup
+          Co-creation de valeur dans l&apos;ecosysteme entrepreneurial tunisien. Choisis une startup
           et candidate aux programmes ouverts.
         </p>
 
@@ -337,7 +350,14 @@ export default function StartupDashboardPage() {
           {!isProgramsLoading && !programsError && sortedPrograms.length > 0 && (
             <div className="mt-4 grid gap-3">
               {sortedPrograms.map((program) => {
-                const isOpen = program.isOpen;
+                const openAt = new Date(program.openDate).getTime();
+                const closeAt = new Date(program.closeDate).getTime();
+                const now = Date.now();
+                const hasOpenDate = !Number.isNaN(openAt);
+                const hasCloseDate = !Number.isNaN(closeAt);
+                const isBeforeOpening = hasOpenDate && now < openAt;
+                const isAfterClosing = hasCloseDate && now > closeAt;
+                const isOpen = program.isOpen && !isBeforeOpening && !isAfterClosing;
                 const existingApplication = applicationByProgramId.get(program.id);
                 const startupId = selectedStartupByProgram[program.id] || myStartups[0]?.id || "";
                 const motivationValue = motivationByProgram[program.id] || "";
@@ -356,10 +376,14 @@ export default function StartupDashboardPage() {
 
                       <span
                         className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${
-                          isOpen ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-700"
+                          isBeforeOpening
+                            ? "bg-sky-50 text-sky-700"
+                            : isOpen
+                              ? "bg-emerald-50 text-emerald-700"
+                              : "bg-slate-100 text-slate-700"
                         }`}
                       >
-                        {isOpen ? "OPEN" : "CLOSED"}
+                        {isBeforeOpening ? "A VENIR" : isOpen ? "OPEN" : "CLOSED"}
                       </span>
                     </div>
 
@@ -375,6 +399,10 @@ export default function StartupDashboardPage() {
                             Startup: {startupNameById.get(existingApplication.startupId) || existingApplication.startupId}
                           </span>
                         </div>
+                      ) : isBeforeOpening ? (
+                        <span className="inline-flex rounded-xl border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-medium text-sky-700">
+                          Les candidatures seront ouvertes le {formatDateTime(program.openDate)}.
+                        </span>
                       ) : isOpen && myStartups.length > 0 ? (
                         <div className="grid w-full gap-2 sm:max-w-xl">
                           <textarea
@@ -421,7 +449,7 @@ export default function StartupDashboardPage() {
                       ) : isOpen ? (
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="inline-flex rounded-xl border border-border bg-slate-50 px-4 py-2 text-sm font-medium text-foreground-muted">
-                            Cree une startup d'abord
+                            Cree une startup d&apos;abord
                           </span>
                           <Link
                             className="dashboard-btn inline-flex rounded-xl border border-border bg-white px-4 py-2 text-sm font-medium text-foreground hover:border-brand/35 hover:text-brand-strong"

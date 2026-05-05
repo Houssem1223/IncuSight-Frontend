@@ -231,12 +231,12 @@ export default function StartupManagement() {
   return (
     <RoleGuard allowedRole="STARTUP">
       <section className="motion-rise dashboard-surface p-6">
-        <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-brand-strong">Startup Space</p>
+        <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-brand-strong">Espace Startup </p>
         <h1 className="mt-2 text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
-          My Startups
+          Mes Startups
         </h1>
         <p className="mt-2 max-w-2xl text-sm text-foreground-muted">
-          Cree jusqu'a {MAX_STARTUPS_PER_USER} profils startup et garde-les a jour.
+          Cree jusqu&apos;a {MAX_STARTUPS_PER_USER} profils startup et garde-les a jour.
         </p>
 
         <div className="mt-5 grid gap-3 md:grid-cols-[1fr_1fr_auto]">
@@ -265,7 +265,7 @@ export default function StartupManagement() {
 
         {myStartups.length === 0 && !isFormVisible && (
           <div className="dashboard-soft-block mt-5 bg-gradient-to-br from-brand/10 via-white to-sky-50 p-5">
-            <p className="text-sm text-foreground-muted">Vous n'avez pas encore de startup.</p>
+            <p className="text-sm text-foreground-muted">Vous n&apos;avez pas encore de startup.</p>
             <button
               className="dashboard-btn mt-3 rounded-xl bg-brand px-4 py-2 text-sm font-medium text-brand-contrast hover:brightness-95"
               disabled={!canCreateMore}

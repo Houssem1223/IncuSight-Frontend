@@ -8,20 +8,22 @@ export interface NavItem {
 export const dashboardNavByRole: Record<UserRole, NavItem[]> = {
   ADMIN: [
     { label: "Dashboard", href: "/dashboard/admin" },
-    { label: "Startups", href: "/dashboard/admin/startups" },
-    { label: "Users", href: "/dashboard/admin/users" },
-    { label: "Program", href: "/dashboard/admin/program" },
-    { label: "Applications", href: "/dashboard/admin/applications" },
+    { label: "Liste des Startups", href: "/dashboard/admin/startups" },
+    { label: "Liste des Utilisateurs", href: "/dashboard/admin/users" },
+    { label: "Liste des Programmes", href: "/dashboard/admin/program" },
+    { label: "Liste des Candidatures", href: "/dashboard/admin/applications" },
+    { label: "Affectation Evaluateurs", href: "/dashboard/admin/application-evaluators" },
+    { label: "Synthese Reviews", href: "/dashboard/admin/application-evaluations" },
   ],
   STARTUP: [
     { label: "Dashboard", href: "/dashboard/startup" },
-    { label: "My Startups", href: "/dashboard/startup/applications" },
-    { label: "My Candidatures", href: "/dashboard/startup/candidatures" },
+    { label: "Mes Startups", href: "/dashboard/startup/applications" },
+    { label: "Mes Candidatures", href: "/dashboard/startup/candidatures" },
     { label: "Profile", href: "/dashboard/startup/profile" },
   ],
   EVALUATOR: [
     { label: "Dashboard", href: "/dashboard/evaluateur" },
-    { label: "Reviews", href: "/dashboard/evaluateur/reviews" },
-    { label: "Assignments", href: "/dashboard/evaluateur/assignments" },
+    { label: "Liste des Reviews", href: "/dashboard/evaluateur/reviews" },
+    { label: "Liste des Assignments", href: "/dashboard/evaluateur/assignments" },
   ],
 };

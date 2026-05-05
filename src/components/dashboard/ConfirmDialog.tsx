@@ -1,8 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
-
-const CLOSE_ANIMATION_MS = 220;
+import { useEffect } from "react";
 
 type ConfirmDialogProps = {
   isOpen: boolean;
@@ -27,34 +25,8 @@ export default function ConfirmDialog({
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
-  const [isRendered, setIsRendered] = useState(isOpen);
-  const [isClosing, setIsClosing] = useState(false);
-
   useEffect(() => {
-    if (isOpen) {
-      setIsRendered(true);
-      setIsClosing(false);
-      return;
-    }
-
-    if (!isRendered) {
-      return;
-    }
-
-    setIsClosing(true);
-
-    const timeoutId = window.setTimeout(() => {
-      setIsRendered(false);
-      setIsClosing(false);
-    }, CLOSE_ANIMATION_MS);
-
-    return () => {
-      window.clearTimeout(timeoutId);
-    };
-  }, [isOpen, isRendered]);
-
-  useEffect(() => {
-    if (!isRendered) {
+    if (!isOpen) {
       return;
     }
 
@@ -62,7 +34,7 @@ export default function ConfirmDialog({
     document.body.style.overflow = "hidden";
 
     const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !isConfirming && !isClosing) {
+      if (event.key === "Escape" && !isConfirming) {
         onCancel();
       }
     };
@@ -73,38 +45,43 @@ export default function ConfirmDialog({
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", handleEscape);
     };
-  }, [isRendered, isConfirming, isClosing, onCancel]);
-
-  if (!isRendered) {
-    return null;
-  }
+  }, [isOpen, isConfirming, onCancel]);
 
   const confirmButtonClass =
     tone === "danger"
       ? "border border-red-200 bg-red-600 text-white hover:bg-red-700"
       : "bg-brand text-brand-contrast hover:brightness-95";
-  const overlayAnimationClass = isClosing ? "modal-overlay-leave" : "modal-overlay-enter";
-  const panelAnimationClass = isClosing ? "modal-panel-leave" : "modal-panel-enter";
+
+  const rootStateClass = isOpen ? "pointer-events-auto" : "pointer-events-none";
+  const overlayStateClass = isOpen
+    ? "opacity-100 duration-220 ease-out"
+    : "opacity-0 duration-200 ease-in";
+  const panelStateClass = isOpen
+    ? "translate-y-0 scale-100 opacity-100 duration-260 ease-out"
+    : "translate-y-3 scale-[0.98] opacity-0 duration-200 ease-in";
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 md:p-6">
+    <div
+      aria-hidden={!isOpen}
+      className={`fixed inset-0 z-[80] flex items-center justify-center p-4 md:p-6 ${rootStateClass}`}
+    >
       <button
         aria-label="Fermer la boite de confirmation"
-        className={`absolute inset-0 bg-slate-900/45 backdrop-blur-sm ${overlayAnimationClass}`}
-        disabled={isConfirming || isClosing}
+        className={`absolute inset-0 bg-slate-900/45 backdrop-blur-sm transition-opacity ${overlayStateClass}`}
+        disabled={!isOpen || isConfirming}
         onClick={onCancel}
         type="button"
       />
 
       <div
         aria-modal="true"
-        className={`relative z-10 w-full max-w-md rounded-2xl border border-border/75 bg-white p-5 shadow-[0_22px_45px_rgba(24,36,51,0.3)] ${panelAnimationClass}`}
+        className={`relative z-10 w-full max-w-md rounded-2xl border border-border/75 bg-white p-5 shadow-[0_22px_45px_rgba(24,36,51,0.3)] transition-all ${panelStateClass}`}
         role="dialog"
       >
         <button
           aria-label="Fermer"
           className="dashboard-btn absolute right-3 top-3 rounded-lg border border-border bg-white px-2.5 py-1 text-sm font-medium text-foreground-muted hover:border-brand/35 hover:text-brand-strong"
-          disabled={isConfirming || isClosing}
+          disabled={!isOpen || isConfirming}
           onClick={onCancel}
           type="button"
         >
@@ -117,7 +94,7 @@ export default function ConfirmDialog({
         <div className="mt-5 flex flex-wrap justify-end gap-2">
           <button
             className="dashboard-btn rounded-xl border border-border bg-white px-4 py-2 text-sm font-medium text-foreground hover:border-brand/35 hover:text-brand-strong disabled:cursor-not-allowed disabled:opacity-70"
-            disabled={isConfirming || isClosing}
+            disabled={!isOpen || isConfirming}
             onClick={onCancel}
             type="button"
           >
@@ -125,7 +102,7 @@ export default function ConfirmDialog({
           </button>
           <button
             className={`dashboard-btn rounded-xl px-4 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-70 ${confirmButtonClass}`}
-            disabled={isConfirming || isClosing}
+            disabled={!isOpen || isConfirming}
             onClick={onConfirm}
             type="button"
           >

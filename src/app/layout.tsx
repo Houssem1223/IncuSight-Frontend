@@ -6,6 +6,9 @@ import { UserProvider } from "../contexts/UserContext";
 import { StartupProvider } from "../contexts/StartupContext";
 import { ProgramProvider } from "../contexts/ProgramContext";
 import { ApplicationProvider } from "../contexts/ApplicationContext";
+import { ApplicationEvaluatorProvider } from "../contexts/ApplicationEvaluatorContext";
+import { EvaluationProvider } from "../contexts/EvaluationContext";
+import { ProgramEvaluatorProvider } from "../contexts/ProgramEvaluatorContext";
 
 const spaceGrotesk = Space_Grotesk({
   subsets: ["latin"],
@@ -36,7 +39,13 @@ export default function RootLayout({
           <UserProvider>
             <StartupProvider>
               <ProgramProvider>
-                <ApplicationProvider>{children}</ApplicationProvider>
+                <ProgramEvaluatorProvider>
+                  <ApplicationProvider>
+                    <ApplicationEvaluatorProvider>
+                      <EvaluationProvider>{children}</EvaluationProvider>
+                    </ApplicationEvaluatorProvider>
+                  </ApplicationProvider>
+                </ProgramEvaluatorProvider>
               </ProgramProvider>
             </StartupProvider>
           </UserProvider>

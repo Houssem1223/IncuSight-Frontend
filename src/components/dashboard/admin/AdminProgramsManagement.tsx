@@ -14,8 +14,11 @@ import {
   FormTextarea,
 } from "@/src/components/ui/forms";
 import { useAuth } from "@/src/contexts/AuthContext";
+import { useProgramEvaluators } from "@/src/contexts/ProgramEvaluatorContext";
 import { usePrograms } from "@/src/contexts/ProgramContext";
+import { useUsers } from "@/src/contexts/UserContext";
 import type { Program } from "@/src/types/program";
+import type { User } from "@/src/types/user";
 
 type ProgramFormState = {
   title: string;
@@ -95,6 +98,14 @@ export default function AdminProgramsManagement() {
     updateProgram,
     removeProgram,
   } = usePrograms();
+  const {
+    evaluatorsByProgramId,
+    fetchProgramEvaluators,
+    assignProgramEvaluator,
+    removeProgramEvaluator,
+    clearProgramEvaluatorsCache,
+  } = useProgramEvaluators();
+  const { users, fetchAllUsers } = useUsers();
 
   const [searchTerm, setSearchTerm] = useState("");
   const [createForm, setCreateForm] = useState<ProgramFormState>({
@@ -109,6 +120,9 @@ export default function AdminProgramsManagement() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editingProgramId, setEditingProgramId] = useState<string | null>(null);
   const [deletingProgramId, setDeletingProgramId] = useState<string | null>(null);
+  const [assigningEvaluatorProgramId, setAssigningEvaluatorProgramId] = useState<string | null>(null);
+  const [removingEvaluatorProgramId, setRemovingEvaluatorProgramId] = useState<string | null>(null);
+  const [selectedEvaluatorByProgramId, setSelectedEvaluatorByProgramId] = useState<Record<string, string>>({});
   const [programToDelete, setProgramToDelete] = useState<Program | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -134,6 +148,8 @@ export default function AdminProgramsManagement() {
     }
 
     void refreshPrograms();
+    void fetchAllUsers().catch(() => {
+    });
 
     const refreshIfVisible = () => {
       if (document.visibilityState === "visible") {
@@ -151,7 +167,20 @@ export default function AdminProgramsManagement() {
       window.removeEventListener("focus", refreshIfVisible);
       document.removeEventListener("visibilitychange", refreshIfVisible);
     };
-  }, [isAuthReady, isAuthenticated, refreshPrograms]);
+  }, [isAuthReady, isAuthenticated, refreshPrograms, fetchAllUsers]);
+
+  useEffect(() => {
+    if (!isAuthReady || !isAuthenticated || programs.length === 0) {
+      return;
+    }
+
+    void Promise.all(
+      programs.map((program) =>
+        fetchProgramEvaluators(program.id).catch(() => {
+        }),
+      ),
+    );
+  }, [isAuthReady, isAuthenticated, programs, fetchProgramEvaluators]);
 
   const sortedPrograms = useMemo(
     () => [...programs].sort((a, b) => a.title.localeCompare(b.title)),
@@ -180,6 +209,56 @@ export default function AdminProgramsManagement() {
       );
     });
   }, [searchTerm, sortedPrograms]);
+
+  const evaluatorUsers = useMemo(
+    () => users.filter((user) => user.role === "EVALUATOR"),
+    [users],
+  );
+
+  const evaluatorLabel = (evaluator: User) => {
+    const fullName = [evaluator.firstName, evaluator.lastName].filter(Boolean).join(" ").trim();
+    return fullName ? `${fullName} (${evaluator.email})` : evaluator.email;
+  };
+
+  const handleAssignEvaluator = async (programId: string) => {
+    resetActionFeedback();
+
+    const selectedEvaluatorId = selectedEvaluatorByProgramId[programId];
+
+    if (!selectedEvaluatorId) {
+      setActionError("Selectionne un evaluateur avant l'affectation.");
+      return;
+    }
+
+    setAssigningEvaluatorProgramId(programId);
+
+    try {
+      await assignProgramEvaluator(programId, selectedEvaluatorId);
+      setActionMessage("Evaluateur affecte au programme avec succes.");
+      setSelectedEvaluatorByProgramId((current) => ({
+        ...current,
+        [programId]: "",
+      }));
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : "Echec de l'affectation de l'evaluateur.");
+    } finally {
+      setAssigningEvaluatorProgramId(null);
+    }
+  };
+
+  const handleRemoveEvaluator = async (programId: string, evaluatorId: string) => {
+    resetActionFeedback();
+    setRemovingEvaluatorProgramId(programId);
+
+    try {
+      await removeProgramEvaluator(programId, evaluatorId);
+      setActionMessage("Evaluateur retire du programme avec succes.");
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : "Echec du retrait de l'evaluateur.");
+    } finally {
+      setRemovingEvaluatorProgramId(null);
+    }
+  };
 
   const openCreateModal = () => {
     clearProgramsError();
@@ -333,6 +412,7 @@ export default function AdminProgramsManagement() {
 
     try {
       await removeProgram(programToDelete.id);
+      clearProgramEvaluatorsCache(programToDelete.id);
 
       if (editForm?.id === programToDelete.id) {
         setEditForm(null);
@@ -441,6 +521,15 @@ export default function AdminProgramsManagement() {
                     const description = program.description || "-";
                     const openDate = formatProgramDate(program.openDate);
                     const closeDate = formatProgramDate(program.closeDate);
+                    const assignedEvaluators = evaluatorsByProgramId[program.id] || [];
+                    const assignedEvaluatorIds = new Set(assignedEvaluators.map((evaluator) => evaluator.id));
+                    const availableEvaluators = evaluatorUsers.filter(
+                      (evaluator) => !assignedEvaluatorIds.has(evaluator.id),
+                    );
+                    const selectedEvaluatorId = selectedEvaluatorByProgramId[program.id] || "";
+                    const isAssigningEvaluator = assigningEvaluatorProgramId === program.id;
+                    const isRemovingEvaluator = removingEvaluatorProgramId === program.id;
+                    const canAssignEvaluator = !isAssigningEvaluator && availableEvaluators.length > 0;
 
                     return (
                       <tr className="border-t border-border/60" key={program.id}>
@@ -479,6 +568,83 @@ export default function AdminProgramsManagement() {
                             >
                               {deletingProgramId === program.id ? "Suppression..." : "Supprimer"}
                             </button>
+                          </div>
+
+                          <div className="mt-3 space-y-2 rounded-lg border border-border/70 bg-slate-50 p-2.5">
+                            <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-foreground-muted">
+                              Evaluateurs affectes ({assignedEvaluators.length})
+                            </p>
+
+                            {assignedEvaluators.length === 0 && (
+                              <p className="text-xs text-foreground-muted">Aucun evaluateur affecte.</p>
+                            )}
+
+                            {assignedEvaluators.length > 0 && (
+                              <div className="flex flex-wrap gap-2">
+                                {assignedEvaluators.map((evaluator) => (
+                                  <span
+                                    className="inline-flex items-center gap-1 rounded-full border border-border bg-white px-2.5 py-1 text-xs text-foreground"
+                                    key={evaluator.id}
+                                  >
+                                    {evaluatorLabel(evaluator)}
+                                    <button
+                                      className="ml-1 rounded-full border border-red-200 bg-red-50 px-1.5 py-0.5 text-[10px] font-medium text-red-700 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-70"
+                                      disabled={isRemovingEvaluator}
+                                      onClick={() => {
+                                        void handleRemoveEvaluator(program.id, evaluator.id);
+                                      }}
+                                      type="button"
+                                    >
+                                      {isRemovingEvaluator ? "..." : "x"}
+                                    </button>
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+
+                            <div className="flex flex-wrap items-center gap-2">
+                              <select
+                                className="rounded-lg border border-border bg-white px-2.5 py-1.5 text-xs text-foreground outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20 disabled:cursor-not-allowed disabled:opacity-70"
+                                disabled={!canAssignEvaluator}
+                                onChange={(event) =>
+                                  setSelectedEvaluatorByProgramId((current) => ({
+                                    ...current,
+                                    [program.id]: event.target.value,
+                                  }))
+                                }
+                                value={selectedEvaluatorId}
+                              >
+                                <option value="">Selectionner un evaluateur</option>
+                                {availableEvaluators.map((evaluator) => (
+                                  <option key={evaluator.id} value={evaluator.id}>
+                                    {evaluatorLabel(evaluator)}
+                                  </option>
+                                ))}
+                              </select>
+
+                              <button
+                                className="dashboard-btn rounded-lg border border-border bg-white px-3 py-1.5 text-xs font-medium text-foreground hover:border-brand/35 hover:text-brand-strong disabled:cursor-not-allowed disabled:opacity-70"
+                                disabled={!selectedEvaluatorId || !canAssignEvaluator}
+                                onClick={() => {
+                                  void handleAssignEvaluator(program.id);
+                                }}
+                                type="button"
+                              >
+                                {isAssigningEvaluator ? "Affectation..." : "Affecter"}
+                              </button>
+                            </div>
+
+                            {availableEvaluators.length === 0 && evaluatorUsers.length > 0 && (
+                              <p className="text-xs text-foreground-muted">
+                                Tous les evaluateurs sont deja affectes a ce programme.
+                              </p>
+                            )}
+
+                            {evaluatorUsers.length === 0 && (
+                              <p className="text-xs text-foreground-muted">
+                                Aucun utilisateur evaluateur disponible.
+                              </p>
+                            )}
                           </div>
                         </td>
                       </tr>
