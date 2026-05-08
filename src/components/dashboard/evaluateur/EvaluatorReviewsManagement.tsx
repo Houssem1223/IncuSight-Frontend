@@ -161,22 +161,43 @@ export default function EvaluatorReviewsManagement() {
     [myEvaluations],
   );
 
+  const displayEvaluations = useMemo(() => {
+    const map = new Map<string, Evaluation>();
+
+    for (const evaluation of sortedEvaluations) {
+      const applicationId = evaluation.applicationId || evaluation.application?.id;
+      const key = applicationId || evaluation.id;
+
+      if (!key) {
+        continue;
+      }
+
+      if (!map.has(key)) {
+        map.set(key, evaluation);
+      }
+    }
+
+    return [...map.values()];
+  }, [sortedEvaluations]);
+
   useEffect(() => {
-    if (sortedEvaluations.length === 0) {
+    if (displayEvaluations.length === 0) {
       setSelectedEvaluationId(null);
       return;
     }
 
-    const alreadyExists = sortedEvaluations.some((evaluation) => evaluation.id === selectedEvaluationId);
+    const alreadyExists = displayEvaluations.some(
+      (evaluation) => evaluation.id === selectedEvaluationId,
+    );
 
     if (!selectedEvaluationId || !alreadyExists) {
-      setSelectedEvaluationId(sortedEvaluations[0].id);
+      setSelectedEvaluationId(displayEvaluations[0].id);
     }
-  }, [sortedEvaluations, selectedEvaluationId]);
+  }, [displayEvaluations, selectedEvaluationId]);
 
   const selectedEvaluation = useMemo(
-    () => sortedEvaluations.find((evaluation) => evaluation.id === selectedEvaluationId) || null,
-    [sortedEvaluations, selectedEvaluationId],
+    () => displayEvaluations.find((evaluation) => evaluation.id === selectedEvaluationId) || null,
+    [displayEvaluations, selectedEvaluationId],
   );
 
   const groupedEvaluations = useMemo(() => {
@@ -189,7 +210,7 @@ export default function EvaluatorReviewsManagement() {
       }
     >();
 
-    for (const evaluation of sortedEvaluations) {
+    for (const evaluation of displayEvaluations) {
       const programId = evaluation.application?.program?.id || evaluation.application?.programId || "unknown";
       const programLabel = getProgramLabelFromEvaluation(evaluation);
       const groupKey = `${programId}:${programLabel}`;
@@ -208,7 +229,7 @@ export default function EvaluatorReviewsManagement() {
     }
 
     return [...groups.values()].sort((left, right) => left.programLabel.localeCompare(right.programLabel));
-  }, [sortedEvaluations]);
+  }, [displayEvaluations]);
 
   useEffect(() => {
     if (!selectedEvaluation) {
@@ -224,7 +245,7 @@ export default function EvaluatorReviewsManagement() {
     let inProgress = 0;
     let submitted = 0;
 
-    for (const evaluation of sortedEvaluations) {
+    for (const evaluation of displayEvaluations) {
       const status = normalizeStatus(evaluation.status);
 
       if (status === "SUBMITTED") {
@@ -237,12 +258,12 @@ export default function EvaluatorReviewsManagement() {
     }
 
     return {
-      total: sortedEvaluations.length,
+      total: displayEvaluations.length,
       pending,
       inProgress,
       submitted,
     };
-  }, [sortedEvaluations]);
+  }, [displayEvaluations]);
 
   const resetFeedback = () => {
     setActionMessage(null);
@@ -398,14 +419,14 @@ export default function EvaluatorReviewsManagement() {
             <h2 className="text-base font-semibold text-foreground">Evaluations assignees</h2>
             <p className="mt-1 text-sm text-foreground-muted">Selectionne une evaluation pour editer.</p>
 
-            {isEvaluationsLoading && sortedEvaluations.length === 0 && (
+            {isEvaluationsLoading && displayEvaluations.length === 0 && (
               <div className="mt-4 space-y-2">
                 <div className="h-10 animate-pulse rounded-xl bg-slate-100" />
                 <div className="h-10 animate-pulse rounded-xl bg-slate-100" />
               </div>
             )}
 
-            {!isEvaluationsLoading && sortedEvaluations.length === 0 && (
+            {!isEvaluationsLoading && displayEvaluations.length === 0 && (
               <p className="mt-4 rounded-xl border border-border/75 bg-white px-3 py-3 text-sm text-foreground-muted">
                 Aucune evaluation assignee.
               </p>
