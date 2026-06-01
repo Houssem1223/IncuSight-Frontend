@@ -1,38 +1,145 @@
 @import "tailwindcss";
+@import "tw-animate-css";
 
 :root {
-  --background: #f7f8fc;
+  --background: oklch(0.98 0.002 250);
+  --foreground: oklch(0.15 0.02 250);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.15 0.02 250);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.15 0.02 250);
+  --primary: oklch(0.65 0.2 45);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.22 0.03 250);
+  --secondary-foreground: oklch(0.98 0 0);
+  --muted: oklch(0.95 0.005 250);
+  --muted-foreground: oklch(0.45 0.02 250);
+  --accent: oklch(0.75 0.15 85);
+  --accent-foreground: oklch(0.15 0.02 250);
+  --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.577 0.245 27.325);
+  --border: oklch(0.9 0.01 250);
+  --input: oklch(0.92 0.005 250);
+  --ring: oklch(0.65 0.2 45);
+  --chart-1: oklch(0.65 0.2 45);
+  --chart-2: oklch(0.22 0.03 250);
+  --chart-3: oklch(0.55 0.15 200);
+  --chart-4: oklch(0.75 0.15 85);
+  --chart-5: oklch(0.6 0.18 30);
+  --radius: 0.625rem;
+  --sidebar: oklch(0.18 0.03 250);
+  --sidebar-foreground: oklch(0.95 0 0);
+  --sidebar-primary: oklch(0.65 0.2 45);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.25 0.03 250);
+  --sidebar-accent-foreground: oklch(0.95 0 0);
+  --sidebar-border: oklch(0.28 0.03 250);
+  --sidebar-ring: oklch(0.65 0.2 45);
   --background-accent: #fff3de;
   --surface: #ffffff;
   --surface-strong: #fff7ea;
-  --foreground: #182433;
-  --foreground-muted: #5f6879;
-  --border: #d7dfeb;
-  --ring: #e57d13;
-  --brand: #ea8a1b;
-  --brand-strong: #cf6500;
-  --brand-contrast: #fffdf8;
+  --foreground-muted: oklch(0.45 0.02 250);
+  --brand: #f97316;
+  --brand-strong: #ea580c;
+  --brand-contrast: #ffffff;
   --warning: #b45309;
   --shadow-soft: 0 18px 45px rgba(24, 36, 51, 0.12);
 }
 
+.dark {
+  --background: #111827;
+  --foreground: oklch(0.985 0 0);
+  --card: #1f2937;
+  --card-foreground: oklch(0.985 0 0);
+  --popover: #1f2937;
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.985 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: #1e293b;
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: #1e293b;
+  --muted-foreground: #94a3b8;
+  --accent: #1e293b;
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.396 0.141 25.723);
+  --destructive-foreground: oklch(0.637 0.237 25.331);
+  --border: #334155;
+  --input: #334155;
+  --ring: #475569;
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(0.269 0 0);
+  --sidebar-ring: oklch(0.439 0 0);
+  --background-accent: #1e293b;
+  --surface: #1f2937;
+  --surface-strong: #273449;
+  --foreground-muted: #94a3b8;
+  --brand: #f97316;
+  --brand-strong: #ea580c;
+  --brand-contrast: #0f172a;
+  --warning: oklch(0.637 0.237 25.331);
+  --shadow-soft: 0 18px 40px rgba(2, 6, 23, 0.35);
+}
+
 @theme inline {
+  --font-sans: var(--font-geist);
+  --font-mono: var(--font-geist-mono);
   --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
   --color-background-accent: var(--background-accent);
   --color-surface: var(--surface);
   --color-surface-strong: var(--surface-strong);
-  --color-foreground: var(--foreground);
   --color-foreground-muted: var(--foreground-muted);
-  --color-border: var(--border);
-  --color-ring: var(--ring);
   --color-brand: var(--brand);
   --color-brand-strong: var(--brand-strong);
   --color-brand-contrast: var(--brand-contrast);
   --color-warning: var(--warning);
-  --font-sans: var(--font-space-grotesk);
-  --font-mono: var(--font-jetbrains-mono);
   --shadow-soft: var(--shadow-soft);
 }
+
 
 * {
   box-sizing: border-box;
@@ -46,18 +153,8 @@ body {
 body {
   margin: 0;
   background: var(--background);
-  background:
-    radial-gradient(circle at 6% 0%, #ffe8c2 0, transparent 34%),
-    radial-gradient(circle at 100% 18%, #ffe2cb 0, transparent 28%),
-    radial-gradient(circle at 88% 82%, #dff3ff 0, transparent 30%),
-    linear-gradient(
-      180deg,
-      var(--background-accent) 0%,
-      var(--background) 38%,
-      #f4f7fb 100%
-    );
   color: var(--foreground);
-  font-family: var(--font-space-grotesk), "Segoe UI", sans-serif;
+  font-family: var(--font-geist), "Segoe UI", sans-serif;
 }
 
 a {
@@ -65,8 +162,8 @@ a {
 }
 
 ::selection {
-  background: var(--brand-strong);
-  color: var(--brand-contrast);
+  background: var(--primary);
+  color: var(--primary-foreground);
 }
 
 @keyframes rise-in {
@@ -214,12 +311,80 @@ a {
   background: linear-gradient(165deg, #f9fbff 0%, #fffaf2 100%);
 }
 
+.dark .dashboard-surface {
+  border: 1px solid color-mix(in oklab, var(--border) 85%, transparent);
+  background: var(--surface);
+  box-shadow: 0 18px 40px rgba(2, 6, 23, 0.35);
+}
+
+.dark .dashboard-card {
+  border: 1px solid color-mix(in oklab, var(--border) 85%, transparent);
+  background: var(--surface);
+  box-shadow: 0 18px 40px rgba(2, 6, 23, 0.35);
+}
+
+.dark .dashboard-card:hover {
+  border-color: color-mix(in oklab, var(--brand) 40%, var(--border));
+  box-shadow: 0 22px 42px rgba(2, 6, 23, 0.45);
+}
+
+.dark .dashboard-soft-block {
+  border: 1px solid color-mix(in oklab, var(--border) 80%, transparent);
+  background: var(--surface-strong);
+}
+
 .dashboard-btn {
   transition: transform 0.24s ease, box-shadow 0.24s ease, filter 0.24s ease;
 }
 
 .dashboard-btn:hover {
   transform: translateY(-1px);
+}
+
+.dark .bg-white {
+  background-color: var(--surface);
+}
+
+.dark .bg-white\/80 {
+  background-color: color-mix(in oklab, var(--surface) 80%, transparent);
+}
+
+.dark .bg-white\/85 {
+  background-color: color-mix(in oklab, var(--surface) 85%, transparent);
+}
+
+.dark .bg-white\/95 {
+  background-color: color-mix(in oklab, var(--surface) 95%, transparent);
+}
+
+.dark .bg-slate-50 {
+  background-color: var(--surface-strong);
+}
+
+.dark .bg-slate-100 {
+  background-color: color-mix(in oklab, var(--surface-strong) 85%, transparent);
+}
+
+.dark .bg-slate-200 {
+  background-color: var(--surface-strong);
+}
+
+.dark .border-slate-200,
+.dark .border-slate-100,
+.dark .border-slate-50 {
+  border-color: var(--border);
+}
+
+.dark .text-slate-900,
+.dark .text-slate-800,
+.dark .text-slate-700 {
+  color: var(--foreground);
+}
+
+.dark .text-slate-600,
+.dark .text-slate-500,
+.dark .text-slate-400 {
+  color: var(--foreground-muted);
 }
 
 @media (prefers-reduced-motion: reduce) {

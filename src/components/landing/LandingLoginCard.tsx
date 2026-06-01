@@ -2,14 +2,19 @@
 
 import { FormEvent, useEffect, useId, useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  FormActions,
-  FormErrorMessage,
-  FormField,
-  FormInput,
-} from "@/src/components/ui/forms";
+import { CheckCircle2 } from "lucide-react";
+import { FormErrorMessage } from "@/src/components/ui/forms";
+import { Button } from "@/src/components/ui/button";
+import { Card, CardContent, CardFooter, CardHeader } from "@/src/components/ui/card";
+import { Input } from "@/src/components/ui/input";
 import { useAuth } from "@/src/contexts/AuthContext";
 import { getDashboardRoute } from "@/src/lib/routeDashboard";
+
+const loginFeatures = [
+  "Comites d evaluation multi-profils",
+  "Workflow candidature-selection-incubation",
+  "Pilotage data-driven pour decisions rapides",
+];
 
 export default function LandingLoginCard() {
   const { login, user, isAuthenticated, isAuthReady } = useAuth();
@@ -53,54 +58,67 @@ export default function LandingLoginCard() {
   const passwordId = `${fieldIdPrefix}-password`;
 
   return (
-    <form
-      className="rounded-2xl border border-border/75 bg-white p-4 md:p-5"
-      id="landing-login"
-      onSubmit={handleSubmit}
-    >
-      <p className="font-mono text-xs uppercase tracking-[0.16em] text-brand-strong">Espace securise</p>
-      <h2 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">Connexion</h2>
-      <p className="mt-1 text-sm text-foreground-muted">Acces direct selon votre role.</p>
+    <Card className="border-border/50 shadow-xl" id="landing-login">
+      <form onSubmit={handleSubmit}>
+        <CardHeader className="space-y-3">
+          <p className="text-xs font-medium uppercase tracking-wider text-primary">Espace securise</p>
+          <div>
+            <h2 className="text-2xl font-semibold tracking-tight text-foreground">Connexion</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Acces direct selon votre role.</p>
+          </div>
+        </CardHeader>
 
-      <div className="mt-5 space-y-4">
-        <FormField htmlFor={emailId} label="Email" required>
-          <FormInput
-            autoComplete="email"
-            disabled={isSubmitting}
-            id={emailId}
-            onChange={(inputEvent) => setEmail(inputEvent.target.value)}
-            placeholder="nom@entreprise.com"
-            required
-            type="email"
-            value={email}
-          />
-        </FormField>
+        <CardContent>
+          <div className="space-y-4">
+            <label className="text-sm font-medium text-foreground" htmlFor={emailId}>
+              Email
+            </label>
+            <Input
+              autoComplete="email"
+              disabled={isSubmitting}
+              id={emailId}
+              onChange={(inputEvent) => setEmail(inputEvent.target.value)}
+              placeholder="votre@email.com"
+              required
+              type="email"
+              className="bg-secondary/30"
+              value={email}
+            />
 
-        <FormField htmlFor={passwordId} label="Mot de passe" required>
-          <FormInput
-            autoComplete="current-password"
-            disabled={isSubmitting}
-            id={passwordId}
-            onChange={(inputEvent) => setPassword(inputEvent.target.value)}
-            placeholder="Votre mot de passe"
-            required
-            type="password"
-            value={password}
-          />
-        </FormField>
-      </div>
+            <label className="text-sm font-medium text-foreground" htmlFor={passwordId}>
+              Mot de passe
+            </label>
+            <Input
+              autoComplete="current-password"
+              disabled={isSubmitting}
+              id={passwordId}
+              onChange={(inputEvent) => setPassword(inputEvent.target.value)}
+              placeholder="Votre mot de passe"
+              required
+              type="password"
+              className="bg-secondary/30"
+              value={password}
+            />
+          </div>
 
-      <FormErrorMessage className="mt-4" message={error || undefined} />
+          <FormErrorMessage className="mt-4" message={error || undefined} />
 
-      <FormActions align="start" className="mt-5">
-        <button
-          className="w-full rounded-xl bg-brand px-4 py-3 text-sm font-medium text-brand-contrast shadow-sm transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-70"
-          disabled={isSubmitting}
-          type="submit"
-        >
-          {isSubmitting ? "Connexion en cours..." : "Se connecter"}
-        </button>
-      </FormActions>
-    </form>
+          <Button className="mt-4 w-full" disabled={isSubmitting} type="submit">
+            {isSubmitting ? "Connexion en cours..." : "Se connecter"}
+          </Button>
+        </CardContent>
+
+        <CardFooter>
+          <div className="space-y-2 border-t border-border pt-4">
+            {loginFeatures.map((feature) => (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground" key={feature}>
+                <CheckCircle2 className="h-4 w-4 text-primary" />
+                <span>{feature}</span>
+              </div>
+            ))}
+          </div>
+        </CardFooter>
+      </form>
+    </Card>
   );
 }

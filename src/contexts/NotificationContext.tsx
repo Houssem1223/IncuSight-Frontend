@@ -4,6 +4,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
@@ -248,6 +249,12 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const [notificationsError, setNotificationsError] = useState<string | null>(null);
 
   const isNotificationsLoading = pendingRequests > 0;
+
+  useEffect(() => {
+    setNotifications([]);
+    setUnreadCount(0);
+    setNotificationsError(null);
+  }, [token]);
 
   const clearNotificationsError = useCallback(() => {
     setNotificationsError(null);

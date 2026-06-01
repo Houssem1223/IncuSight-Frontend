@@ -3,6 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/src/contexts/AuthContext";
+import { DashboardThemeProvider } from "@/src/contexts/DashboardThemeContext";
 import Sidebar from "@/src/components/dashboard/Sidebar";
 import Header from "@/src/components/dashboard/Header";
 
@@ -14,6 +15,29 @@ export default function DashboardLayout({
   const { user, isAuthenticated, isAuthReady, logout } = useAuth();
   const router = useRouter();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [darkMode, setDarkMode] = useState(false);
+
+  useEffect(() => {
+    const storedPreference = localStorage.getItem("dashboard-dark-mode");
+    if (storedPreference !== null) {
+      setDarkMode(storedPreference === "true");
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem("dashboard-dark-mode", String(darkMode));
+  }, [darkMode]);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    root.classList.toggle("dark", darkMode);
+    root.style.colorScheme = darkMode ? "dark" : "light";
+
+    return () => {
+      root.classList.remove("dark");
+      root.style.colorScheme = "";
+    };
+  }, [darkMode]);
 
   useEffect(() => {
     if (isAuthReady && !isAuthenticated) {
@@ -45,20 +69,30 @@ export default function DashboardLayout({
   }
 
   return (
-    <div className="min-h-screen bg-transparent md:grid md:grid-cols-[18rem_1fr]">
+    <div className="min-h-screen bg-transparent">
       <Sidebar
+        user={user}
         role={user.role}
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
+        onLogout={handleLogout}
       />
-      <div className="relative flex min-h-screen flex-col">
-        <Header
-          user={user}
-          onLogout={handleLogout}
-          onToggleSidebar={() => setIsSidebarOpen((current) => !current)}
-        />
-        <main className="px-4 pb-8 pt-6 md:px-8">{children}</main>
-      </div>
+      <DashboardThemeProvider
+        darkMode={darkMode}
+        toggleDarkMode={() => setDarkMode((current) => !current)}
+      >
+        <div className="relative flex min-h-screen flex-col md:pl-72">
+          <Header
+            user={user}
+            darkMode={darkMode}
+            onToggleDarkMode={() => setDarkMode((current) => !current)}
+            onToggleSidebar={() => setIsSidebarOpen((current) => !current)}
+          />
+          <main className="flex-1 bg-background px-4 pb-10 pt-6 text-foreground transition-colors duration-300 md:px-8">
+            {children}
+          </main>
+        </div>
+      </DashboardThemeProvider>
     </div>
   );
 }

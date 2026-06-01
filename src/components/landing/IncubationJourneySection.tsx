@@ -1,64 +1,62 @@
-import SectionIntro from "@/src/components/landing/SectionIntro";
+import { CheckCircle2, FileText, Rocket, Users } from "lucide-react";
 
-type JourneyStep = {
-  step: string;
-  title: string;
-  description: string;
-};
-
-const journeySteps: JourneyStep[] = [
+const processSteps = [
   {
-    step: "01",
-    title: "Candidature",
-    description: "Reception et qualification des dossiers startups via un pipeline unique.",
+    number: "01",
+    title: "Depot",
+    description: "La startup soumet sa candidature via le formulaire en ligne.",
+    icon: FileText,
   },
   {
-    step: "02",
-    title: "Selection",
-    description: "Evaluation multi-critere avec comites, scoring et consolidation des avis.",
+    number: "02",
+    title: "Pre-selection",
+    description: "Scoring automatique et tri par l&apos;equipe incubateur.",
+    icon: CheckCircle2,
   },
   {
-    step: "03",
+    number: "03",
+    title: "Comite",
+    description: "Evaluation approfondie par le panel d&apos;experts.",
+    icon: Users,
+  },
+  {
+    number: "04",
     title: "Incubation",
-    description: "Activation du programme: objectifs, jalons et accompagnement personnalise.",
-  },
-  {
-    step: "04",
-    title: "Suivi",
-    description: "Monitoring des progres startup et coordination continue avec les experts.",
-  },
-  {
-    step: "05",
-    title: "Decision",
-    description: "Decision finale, trajectoire d&apos;evolution et capitalisation des apprentissages.",
+    description: "Demarrage du programme et suivi continu.",
+    icon: Rocket,
   },
 ];
 
 export default function IncubationJourneySection() {
   return (
-    <section className="mx-auto mt-7 max-w-6xl md:mt-10">
-      <div className="rounded-[30px] border border-border/75 bg-gradient-to-br from-white to-slate-50 p-6 shadow-[var(--shadow-soft)] md:p-10">
-        <SectionIntro
-          description="Un flow lisible pour toutes les parties prenantes: startup, evaluateurs, experts et administrateurs."
-          eyebrow="Parcours D&apos;Incubation"
-          title="De la candidature a la decision, chaque etape est structuree."
-        />
+    <section className="bg-muted/50 py-20">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="text-center">
+          <p className="mb-3 text-xs font-medium uppercase tracking-wider text-primary">Processus</p>
+          <h2 className="text-3xl font-bold text-foreground lg:text-4xl">
+            Du depot a l&apos;incubation en quelques etapes
+          </h2>
+        </div>
 
-        <div className="mt-7 grid gap-3 lg:grid-cols-5">
-          {journeySteps.map((step, index) => (
-            <article className="relative rounded-2xl border border-border/70 bg-white p-4" key={step.step}>
-              <span className="inline-flex rounded-full bg-brand/12 px-2.5 py-1 text-xs font-semibold tracking-[0.12em] text-brand-strong">
-                {step.step}
-              </span>
+        <div className="mt-12 grid gap-8 md:grid-cols-4">
+          {processSteps.map((step) => {
+            const Icon = step.icon;
 
-              <h3 className="mt-3 text-sm font-semibold text-foreground md:text-base">{step.title}</h3>
-              <p className="mt-2 text-sm leading-relaxed text-foreground-muted">{step.description}</p>
-
-              {index < journeySteps.length - 1 && (
-                <div className="pointer-events-none absolute -right-2 top-6 hidden h-[2px] w-4 bg-brand/35 lg:block" />
-              )}
-            </article>
-          ))}
+            return (
+              <div className="text-center" key={step.number}>
+                <div className="relative mb-6">
+                  <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10">
+                    <span className="text-2xl font-bold text-primary">{step.number}</span>
+                  </div>
+                  <div className="absolute -bottom-2 -right-2 flex h-8 w-8 items-center justify-center rounded-lg bg-secondary text-secondary-foreground">
+                    <Icon className="h-4 w-4" />
+                  </div>
+                </div>
+                <h3 className="mb-2 font-semibold text-foreground">{step.title}</h3>
+                <p className="text-sm text-muted-foreground">{step.description}</p>
+              </div>
+            );
+          })}
         </div>
       </div>
     </section>

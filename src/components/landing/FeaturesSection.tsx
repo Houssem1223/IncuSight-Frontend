@@ -1,67 +1,107 @@
-import SectionIntro from "@/src/components/landing/SectionIntro";
+import {
+  BarChart3,
+  FileText,
+  Rocket,
+  Shield,
+  Target,
+  Users,
+} from "lucide-react";
+import { Badge } from "@/src/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/src/components/ui/card";
 
-type OfferItem = {
-  title: string;
-  description: string;
-  tag: string;
-};
-
-const offerItems: OfferItem[] = [
+const moduleCards = [
   {
-    title: "Gestion des candidatures",
-    description:
-      "Centralisez tous les dossiers startup, automatisez la qualification initiale et reduisez les pertes d&apos;information.",
-    tag: "Intake",
+    title: "Intake",
+    subtitle: "Gestion des candidatures",
+    description: "Formulaires dynamiques, collecte documents, scoring automatique.",
+    icon: FileText,
+    color: "primary",
   },
   {
-    title: "Evaluation structuree",
-    description:
-      "Cadrez les revues avec des grilles homogenes, des notes comparables et des retours exploitables.",
-    tag: "Review",
+    title: "Review",
+    subtitle: "Comites d evaluation",
+    description: "Notation multi-criteres, workflow de validation, historique decisions.",
+    icon: Users,
+    color: "secondary",
   },
   {
-    title: "Suivi des startups",
-    description:
-      "Visualisez les objectifs, les etapes et les alertes pour accompagner les equipes dans la duree.",
-    tag: "Tracking",
+    title: "Tracking",
+    subtitle: "Suivi des startups",
+    description: "KPIs, jalons, alertes, reporting pour chaque startup incubee.",
+    icon: Rocket,
+    color: "accent",
   },
   {
-    title: "Reporting et indicateurs",
-    description:
-      "Exposez des KPI de programme, de selection et de performance pour des decisions mieux outillees.",
-    tag: "Insights",
+    title: "Insights",
+    subtitle: "Analytics & BI",
+    description: "Tableaux de bord, metriques agregees, export pour stakeholders.",
+    icon: BarChart3,
+    color: "primary",
   },
   {
-    title: "Programmes d&apos;incubation",
-    description:
-      "Parametrez vos cohortes, calendriers et fenetres de candidature avec une execution consistente.",
-    tag: "Programs",
+    title: "Programs",
+    subtitle: "Configuration",
+    description: "Creation de cohortes, parametrage des phases et criteres.",
+    icon: Target,
+    color: "secondary",
+  },
+  {
+    title: "Admin",
+    subtitle: "Gouvernance",
+    description: "Gestion des roles, audit trail, parametres de securite.",
+    icon: Shield,
+    color: "accent",
   },
 ];
 
+const colorClasses: Record<string, string> = {
+  primary: "bg-primary/10 text-primary border-primary/20",
+  secondary: "bg-secondary/40 text-foreground border-secondary",
+  accent: "bg-accent/20 text-accent-foreground border-accent/30",
+};
+
 export default function FeaturesSection() {
   return (
-    <section className="mx-auto mt-7 max-w-6xl md:mt-10">
-      <div className="motion-rise motion-rise-delay-2 rounded-[30px] border border-border/75 bg-white/75 p-6 shadow-[var(--shadow-soft)] backdrop-blur md:p-10">
-        <SectionIntro
-          description="Chaque module est concu pour fluidifier les operations incubateur et renforcer la qualite d&apos;accompagnement des entrepreneurs."
-          eyebrow="Ce Que Nous Offrons"
-          title="Une plateforme complete pour piloter l&apos;incubation de bout en bout."
-        />
+    <section className="py-20" id="modules">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="text-center">
+          <p className="mb-3 text-xs font-medium uppercase tracking-wider text-primary">
+            Ce que nous offrons
+          </p>
+          <h2 className="text-3xl font-bold text-balance text-foreground lg:text-4xl">
+            Une plateforme complete pour piloter l&apos;incubation de bout en bout.
+          </h2>
+          <p className="mx-auto mt-4 max-w-2xl text-muted-foreground">
+            Chaque module est concu pour fluidifier les operations incubateur et renforcer la
+            qualite d&apos;accompagnement des entrepreneurs.
+          </p>
+        </div>
 
-        <div className="mt-7 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-          {offerItems.map((item) => (
-            <article
-              className="dashboard-card rounded-2xl border border-border/75 bg-gradient-to-b from-white to-slate-50 p-4"
-              key={item.title}
-            >
-              <span className="inline-flex rounded-full border border-brand/25 bg-brand/10 px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.14em] text-brand-strong">
-                {item.tag}
-              </span>
-              <h3 className="mt-3 text-base font-semibold text-foreground">{item.title}</h3>
-              <p className="mt-2 text-sm leading-relaxed text-foreground-muted">{item.description}</p>
-            </article>
-          ))}
+        <div className="mt-12 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {moduleCards.map((card) => {
+            const Icon = card.icon;
+
+            return (
+              <Card className="group border-border/50 transition-shadow hover:shadow-lg" key={card.title}>
+                <CardHeader className="pb-3">
+                  <div className={`mb-3 flex h-12 w-12 items-center justify-center rounded-xl border ${colorClasses[card.color]}`}>
+                    <Icon className="h-6 w-6" />
+                  </div>
+                  <Badge className="w-fit border-border bg-transparent text-xs text-muted-foreground">
+                    {card.title}
+                  </Badge>
+                  <CardTitle className="text-lg">{card.subtitle}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-muted-foreground">{card.description}</p>
+                  <div className="mt-4 flex items-center gap-1 text-sm text-primary transition-all group-hover:gap-2">
+                    <span>En savoir plus</span>
+                    <span aria-hidden="true">→</span>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       </div>
     </section>

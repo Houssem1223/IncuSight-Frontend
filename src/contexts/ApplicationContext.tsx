@@ -11,7 +11,7 @@ import {
 } from "react";
 import { apiFetch } from "@/src/lib/api";
 import { useAuth } from "@/src/contexts/AuthContext";
-import type { Application } from "@/src/types/application";
+import type { Application, Decision } from "@/src/types/application";
 
 type CreateApplicationPayload = {
   startupId: string;
@@ -23,6 +23,16 @@ type CreateApplicationPayload = {
 type UpdateApplicationPayload = {
   status?: string;
   [key: string]: unknown;
+};
+
+type MakeDecisionPayload = {
+  status: string;
+  comment?: string;
+};
+
+type MakeDecisionResult = {
+  application: Application;
+  decision: Decision;
 };
 
 type BackendMessage = {
@@ -42,6 +52,7 @@ type ApplicationContextType = {
   createApplication: (payload: CreateApplicationPayload) => Promise<Application>;
   removeMyApplication: (id: string) => Promise<BackendMessage | Application>;
   updateApplicationStatus: (id: string, payload: UpdateApplicationPayload) => Promise<Application>;
+  makeDecision: (id: string, payload: MakeDecisionPayload) => Promise<MakeDecisionResult>;
 };
 
 const ApplicationContext = createContext<ApplicationContextType | undefined>(undefined);
@@ -219,6 +230,42 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
     [getRequiredToken, upsertApplication, upsertInList],
   );
 
+  const makeDecision = useCallback(
+    async (id: string, payload: MakeDecisionPayload) => {
+      const authToken = getRequiredToken();
+      const result = await apiFetch<MakeDecisionResult>(
+        `application/${id}/decision`,
+        {
+          method: "PATCH",
+          body: JSON.stringify(payload),
+        },
+        authToken,
+      );
+
+      const updatedApplication = {
+        ...result.application,
+        decision: result.application.decision ?? result.decision,
+      };
+
+      upsertApplication(updatedApplication);
+      setMyApplications((current) => {
+        const existsInMine = current.some((application) => application.id === updatedApplication.id);
+
+        if (!existsInMine) {
+          return current;
+        }
+
+        return upsertInList(current, updatedApplication);
+      });
+
+      return {
+        application: updatedApplication,
+        decision: result.decision,
+      };
+    },
+    [getRequiredToken, upsertApplication, upsertInList],
+  );
+
   const value = useMemo(
     () => ({
       applications,
@@ -233,6 +280,7 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
       createApplication,
       removeMyApplication,
       updateApplicationStatus,
+      makeDecision,
     }),
     [
       applications,
@@ -247,6 +295,7 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
       createApplication,
       removeMyApplication,
       updateApplicationStatus,
+      makeDecision,
     ],
   );
 

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { JetBrains_Mono, Space_Grotesk } from "next/font/google";
+import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "../contexts/AuthContext";
 import { UserProvider } from "../contexts/UserContext";
@@ -11,19 +11,20 @@ import { EvaluationProvider } from "../contexts/EvaluationContext";
 import { ProgramEvaluatorProvider } from "../contexts/ProgramEvaluatorContext";
 import { NotificationProvider } from "../contexts/NotificationContext";
 
-const spaceGrotesk = Space_Grotesk({
+const geist = Geist({
   subsets: ["latin"],
-  variable: "--font-space-grotesk",
+  variable: "--font-geist",
 });
 
-const jetBrainsMono = JetBrains_Mono({
+const geistMono = Geist_Mono({
   subsets: ["latin"],
-  variable: "--font-jetbrains-mono",
+  variable: "--font-geist-mono",
 });
 
 export const metadata: Metadata = {
-  title: "IncuSight",
-  description: "Smart incubation platform for startup management and evaluation",
+  title: "IncuSight | MEDIANET Incubateur",
+  description: "Plateforme digitale de gestion et suivi des startups - MEDIANET Incubator",
+  generator: "v0.app",
 };
 
 export default function RootLayout({
@@ -32,9 +33,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="fr">
       <body
-        className={`${spaceGrotesk.variable} ${jetBrainsMono.variable} font-sans antialiased`}
+        className={`${geist.variable} ${geistMono.variable} font-sans antialiased bg-background text-foreground`}
       >
         <AuthProvider>
           <UserProvider>

@@ -1,8 +1,9 @@
 "use client";
 
+import type { FormEvent } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import RoleGuard from "@/src/components/auth/Roleguard";
-import ConfirmDialog from "@/src/components/dashboard/ConfirmDialog";
+import FormModal from "@/src/components/ui/forms/FormModal";
 import { useApplications } from "@/src/contexts/ApplicationContext";
 import { useAuth } from "@/src/contexts/AuthContext";
 import type { Application } from "@/src/types/application";
@@ -21,7 +22,10 @@ type StatusUpdateConfirmation = {
   nextStatus: string;
   programLabel: string;
   startupLabel: string;
+  comment: string;
 };
+
+const finalDecisionStatuses = ["ACCEPTED", "REJECTED"] as const;
 
 function formatDate(value?: string): string {
   if (!value) {
@@ -80,7 +84,7 @@ export default function AdminApplicationsManagement() {
     applicationsError,
     clearApplicationsError,
     fetchAllApplications,
-    updateApplicationStatus,
+    makeDecision,
   } = useApplications();
 
   const [searchTerm, setSearchTerm] = useState("");
@@ -218,7 +222,17 @@ export default function AdminApplicationsManagement() {
     const nextStatus = (statusDraftByApplicationId[application.id] || currentStatus).toUpperCase();
 
     if (nextStatus === currentStatus) {
-      setActionError("Select a different status before saving.");
+      setActionError("Selectionnez un statut different avant d'enregistrer.");
+      return;
+    }
+
+    if (!finalDecisionStatuses.includes(nextStatus as (typeof finalDecisionStatuses)[number])) {
+      setActionError("Seules les decisions finales ACCEPTED ou REJECTED sont autorisees.");
+      return;
+    }
+
+    if (application.decision) {
+      setActionError("Une decision finale existe deja pour cette candidature.");
       return;
     }
 
@@ -228,6 +242,20 @@ export default function AdminApplicationsManagement() {
       nextStatus,
       programLabel: getProgramLabel(application),
       startupLabel: getStartupLabel(application),
+      comment: "",
+    });
+  };
+
+  const handleDecisionCommentChange = (value: string) => {
+    setStatusUpdateConfirmation((current) => {
+      if (!current) {
+        return current;
+      }
+
+      return {
+        ...current,
+        comment: value,
+      };
     });
   };
 
@@ -263,15 +291,23 @@ export default function AdminApplicationsManagement() {
     setUpdatingApplicationId(applicationId);
 
     try {
-      await updateApplicationStatus(applicationId, { status: nextStatus });
+      await makeDecision(applicationId, {
+        status: nextStatus,
+        comment: statusUpdateConfirmation.comment.trim() || undefined,
+      });
       await refreshApplications();
-      setActionMessage("Application status updated successfully.");
+      setActionMessage("Decision finale enregistree avec succes.");
     } catch (error) {
-      setActionError(error instanceof Error ? error.message : "Unable to update status.");
+      setActionError(error instanceof Error ? error.message : "Impossible d'enregistrer la decision.");
     } finally {
       setUpdatingApplicationId(null);
       setStatusUpdateConfirmation(null);
     }
+  };
+
+  const submitDecisionForm = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    void confirmStatusUpdate();
   };
 
   return (
@@ -287,19 +323,19 @@ export default function AdminApplicationsManagement() {
             </h1>
             <p className="mt-2 text-sm text-foreground-muted">
               {searchTerm.trim() || statusFilter !== "ALL"
-                ? `Showing ${filteredApplications.length} of ${applications.length} applications`
-                : `Total applications: ${applications.length}`}
+                ? `${filteredApplications.length} sur ${applications.length} candidatures affichees`
+                : `Total de candidatures: ${applications.length}`}
             </p>
           </div>
 
           <div className="w-full max-w-sm">
             <label className="mb-2 block text-xs font-medium uppercase tracking-[0.14em] text-foreground-muted">
-              Search
+              Recherche
             </label>
             <input
               className="w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-foreground outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20"
               onChange={(event) => setSearchTerm(event.target.value)}
-              placeholder="Program, startup, status, motivation..."
+              placeholder="Programme, startup, statut, motivation..."
               type="text"
               value={searchTerm}
             />
@@ -382,11 +418,11 @@ export default function AdminApplicationsManagement() {
               <table className="min-w-full text-left text-sm">
                 <thead className="bg-slate-50 text-foreground-muted">
                   <tr>
-                    <th className="px-4 py-3 font-medium">Program</th>
+                    <th className="px-4 py-3 font-medium">Programme</th>
                     <th className="px-4 py-3 font-medium">Startup</th>
                     <th className="px-4 py-3 font-medium">Motivation</th>
-                    <th className="px-4 py-3 font-medium">Status</th>
-                    <th className="px-4 py-3 font-medium">Created</th>
+                    <th className="px-4 py-3 font-medium">Statut</th>
+                    <th className="px-4 py-3 font-medium">Cree le</th>
                     <th className="px-4 py-3 font-medium">Actions</th>
                   </tr>
                 </thead>
@@ -395,8 +431,8 @@ export default function AdminApplicationsManagement() {
                     <tr>
                       <td className="px-4 py-6 text-center text-foreground-muted" colSpan={6}>
                         {searchTerm.trim()
-                          ? "No matching applications found."
-                          : "No applications found."}
+                          ? "Aucune candidature correspondante trouvee."
+                          : "Aucune candidature trouvee."}
                       </td>
                     </tr>
                   )}
@@ -405,6 +441,7 @@ export default function AdminApplicationsManagement() {
                     const currentStatus = normalizeStatus(application.status);
                     const selectedStatus =
                       statusDraftByApplicationId[application.id] || currentStatus;
+                    const hasDecision = Boolean(application.decision);
 
                     return (
                       <tr className="border-t border-border/60" key={application.id}>
@@ -427,6 +464,7 @@ export default function AdminApplicationsManagement() {
                           <div className="flex flex-wrap items-center gap-2">
                             <select
                               className="rounded-lg border border-border bg-white px-2.5 py-1.5 text-xs text-foreground outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20"
+                              disabled={hasDecision}
                               onChange={(event) =>
                                 setStatusDraftByApplicationId((current) => ({
                                   ...current,
@@ -444,11 +482,15 @@ export default function AdminApplicationsManagement() {
 
                             <button
                               className="dashboard-btn rounded-lg border border-border bg-white px-3 py-1.5 text-xs font-medium text-foreground hover:border-brand/35 hover:text-brand-strong disabled:cursor-not-allowed disabled:opacity-70"
-                              disabled={updatingApplicationId === application.id}
+                              disabled={updatingApplicationId === application.id || hasDecision}
                               onClick={() => handleStatusUpdate(application)}
                               type="button"
                             >
-                              {updatingApplicationId === application.id ? "Enregistrement..." : "Enregistrer"}
+                              {hasDecision
+                                ? "Decision enregistree"
+                                : updatingApplicationId === application.id
+                                  ? "Enregistrement..."
+                                  : "Enregistrer"}
                             </button>
                           </div>
                         </td>
@@ -487,6 +529,7 @@ export default function AdminApplicationsManagement() {
                         const currentStatus = normalizeStatus(application.status);
                         const selectedStatus =
                           statusDraftByApplicationId[application.id] || currentStatus;
+                        const hasDecision = Boolean(application.decision);
 
                         return (
                           <div
@@ -515,6 +558,7 @@ export default function AdminApplicationsManagement() {
 
                               <select
                                 className="rounded-lg border border-border bg-white px-2.5 py-1.5 text-xs text-foreground outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20"
+                                disabled={hasDecision}
                                 onChange={(event) =>
                                   setStatusDraftByApplicationId((current) => ({
                                     ...current,
@@ -532,11 +576,15 @@ export default function AdminApplicationsManagement() {
 
                               <button
                                 className="dashboard-btn rounded-lg border border-border bg-white px-3 py-1.5 text-xs font-medium text-foreground hover:border-brand/35 hover:text-brand-strong disabled:cursor-not-allowed disabled:opacity-70"
-                                disabled={updatingApplicationId === application.id}
+                                disabled={updatingApplicationId === application.id || hasDecision}
                                 onClick={() => handleStatusUpdate(application)}
                                 type="button"
                               >
-                                {updatingApplicationId === application.id ? "Enregistrement..." : "Enregistrer"}
+                                {hasDecision
+                                  ? "Decision enregistree"
+                                  : updatingApplicationId === application.id
+                                    ? "Enregistrement..."
+                                    : "Enregistrer"}
                               </button>
                             </div>
                           </div>
@@ -550,25 +598,67 @@ export default function AdminApplicationsManagement() {
           </div>
         )}
 
-        <ConfirmDialog
-          cancelLabel="Annuler"
-          confirmLabel="Confirmer"
+        <FormModal
+          closeLabel="Fermer"
           description={
             statusUpdateConfirmation
-              ? `Passer le statut de ${statusUpdateConfirmation.currentStatus} a ${statusUpdateConfirmation.nextStatus} pour ${statusUpdateConfirmation.startupLabel} dans ${statusUpdateConfirmation.programLabel} ?`
+              ? `Vous allez publier la decision ${statusUpdateConfirmation.nextStatus} pour ${statusUpdateConfirmation.startupLabel} dans ${statusUpdateConfirmation.programLabel}.`
               : undefined
           }
-          isConfirming={Boolean(
+          isBusy={Boolean(
             statusUpdateConfirmation &&
               updatingApplicationId === statusUpdateConfirmation.applicationId,
           )}
           isOpen={Boolean(statusUpdateConfirmation)}
-          onCancel={cancelStatusUpdate}
-          onConfirm={() => {
-            void confirmStatusUpdate();
-          }}
-          title="Confirmer le changement de statut"
-        />
+          maxWidthClassName="max-w-xl"
+          onClose={cancelStatusUpdate}
+          onSubmit={submitDecisionForm}
+          title="Decision finale"
+        >
+          <div className="space-y-3">
+            <p className="text-xs text-foreground-muted">
+              Statut actuel: <span className="font-medium text-foreground">{statusUpdateConfirmation?.currentStatus}</span>
+            </p>
+
+            <label className="block text-sm font-medium text-foreground" htmlFor="decision-comment">
+              Commentaire (optionnel)
+            </label>
+            <textarea
+              className="min-h-28 w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-foreground outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20"
+              id="decision-comment"
+              onChange={(event) => handleDecisionCommentChange(event.target.value)}
+              placeholder="Ajoutez un contexte pour cette decision finale..."
+              value={statusUpdateConfirmation?.comment || ""}
+            />
+          </div>
+
+          <div className="mt-2 flex flex-wrap justify-end gap-2">
+            <button
+              className="dashboard-btn rounded-xl border border-border bg-white px-4 py-2 text-sm font-medium text-foreground hover:border-brand/35 hover:text-brand-strong disabled:cursor-not-allowed disabled:opacity-70"
+              disabled={Boolean(
+                statusUpdateConfirmation &&
+                  updatingApplicationId === statusUpdateConfirmation.applicationId,
+              )}
+              onClick={cancelStatusUpdate}
+              type="button"
+            >
+              Annuler
+            </button>
+            <button
+              className="dashboard-btn rounded-xl bg-brand px-4 py-2 text-sm font-medium text-brand-contrast disabled:cursor-not-allowed disabled:opacity-70"
+              disabled={Boolean(
+                statusUpdateConfirmation &&
+                  updatingApplicationId === statusUpdateConfirmation.applicationId,
+              )}
+              type="submit"
+            >
+              {statusUpdateConfirmation &&
+              updatingApplicationId === statusUpdateConfirmation.applicationId
+                ? "Enregistrement..."
+                : "Enregistrer la decision"}
+            </button>
+          </div>
+        </FormModal>
       </section>
     </RoleGuard>
   );

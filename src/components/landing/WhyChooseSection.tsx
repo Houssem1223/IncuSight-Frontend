@@ -1,52 +1,75 @@
-import SectionIntro from "@/src/components/landing/SectionIntro";
+import { Briefcase, Building2, CheckCircle2, GraduationCap } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/src/components/ui/card";
 
-const differentiators = [
+const roles = [
   {
-    title: "Expertise operationnelle",
-    description: "Des workflows concus pour les realites terrain d&apos;un incubateur et de ses comites.",
+    title: "Equipe Incubateur",
+    icon: Briefcase,
+    features: [
+      "Vue consolidee des programmes",
+      "Gestion des cohortes",
+      "Reporting automatise",
+      "Communication centralisee",
+    ],
   },
   {
-    title: "Accompagnement continu",
-    description: "Un suivi structure des startups, depuis l&apos;onboarding jusqu&apos;aux decisions strategiques.",
+    title: "Experts & Evaluateurs",
+    icon: GraduationCap,
+    features: [
+      "Interface de notation intuitive",
+      "Acces aux dossiers",
+      "Historique des evaluations",
+      "Recommandations structurees",
+    ],
   },
   {
-    title: "Vision data-driven",
-    description: "Des indicateurs fiables pour arbitrer plus vite et mieux orienter les ressources.",
-  },
-  {
-    title: "Simplicite de gestion",
-    description: "Une experience claire pour ADMIN, STARTUP et EVALUATOR, sans dette operationnelle.",
+    title: "Startups",
+    icon: Building2,
+    features: [
+      "Suivi de candidature en temps reel",
+      "Tableau de bord personnalise",
+      "Acces aux ressources",
+      "Communication directe",
+    ],
   },
 ];
 
 export default function WhyChooseSection() {
   return (
-    <section className="mx-auto mt-7 max-w-6xl md:mt-10">
-      <div className="dashboard-surface p-6 md:p-10">
-        <div className="grid gap-6 lg:grid-cols-[1fr_1fr]">
-          <SectionIntro
-            description="IncuSight s&apos;adresse aux incubateurs qui veulent renforcer leur credibilite institutionnelle, leur qualite d&apos;execution et leur capacite a faire grandir les startups."
-            eyebrow="Pourquoi Nous Choisir"
-            title="Un positionnement premium entre innovation, gouvernance et impact entrepreneurial."
-          />
-
-          <div className="rounded-2xl border border-border/75 bg-white/90 p-5">
-            <p className="font-mono text-xs uppercase tracking-[0.16em] text-brand-strong">Vision Incubateur</p>
-            <p className="mt-3 text-sm leading-relaxed text-foreground-muted md:text-base">
-              Notre ambition est de fournir une plateforme qui aligne vitesse d&apos;execution,
-              transparence de decision et excellence d&apos;accompagnement. Vous construisez un
-              ecosysteme startup plus robuste, plus lisible et plus performant.
-            </p>
-          </div>
+    <section className="py-20" id="about">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="text-center">
+          <p className="mb-3 text-xs font-medium uppercase tracking-wider text-primary">Pour qui ?</p>
+          <h2 className="text-3xl font-bold text-foreground lg:text-4xl">
+            Une solution adaptee a chaque acteur
+          </h2>
         </div>
 
-        <div className="mt-7 grid gap-4 md:grid-cols-2">
-          {differentiators.map((item) => (
-            <article className="rounded-2xl border border-border/75 bg-white p-4" key={item.title}>
-              <h3 className="text-base font-semibold text-foreground">{item.title}</h3>
-              <p className="mt-2 text-sm leading-relaxed text-foreground-muted">{item.description}</p>
-            </article>
-          ))}
+        <div className="mt-12 grid gap-8 md:grid-cols-3">
+          {roles.map((role) => {
+            const Icon = role.icon;
+
+            return (
+              <Card className="border-border/50 transition-shadow hover:shadow-lg" key={role.title}>
+                <CardHeader className="pb-4 text-center">
+                  <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                    <Icon className="h-8 w-8" />
+                  </div>
+                  <CardTitle>{role.title}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ul className="space-y-3">
+                    {role.features.map((feature) => (
+                      <li className="flex items-center gap-2 text-sm text-muted-foreground" key={feature}>
+                        <CheckCircle2 className="h-4 w-4 text-primary" />
+                        <span>{feature}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       </div>
     </section>

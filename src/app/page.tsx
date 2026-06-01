@@ -1,23 +1,25 @@
 import {
+  FooterSection,
+  LandingHeader,
   FeaturesSection,
   FinalCTASection,
   HeroSection,
   IncubationJourneySection,
   MissionSection,
-  ProgramsPreviewSection,
   WhyChooseSection,
 } from "@/src/components/landing";
 
 export default function Home() {
   return (
-    <main className="px-4 pb-20 pt-6 md:px-8 md:pb-28 md:pt-8">
+    <main className="bg-background px-4 pb-20 pt-0 text-foreground md:px-0 md:pb-0 md:pt-0">
+      <LandingHeader />
       <HeroSection />
       <MissionSection />
       <FeaturesSection />
       <IncubationJourneySection />
-      <ProgramsPreviewSection />
       <WhyChooseSection />
       <FinalCTASection />
+      <FooterSection />
     </main>
   );
 }

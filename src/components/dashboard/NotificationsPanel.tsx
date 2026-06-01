@@ -72,7 +72,7 @@ export default function NotificationsPanel({
   const [actionId, setActionId] = useState<string | null>(null);
   const [isMarkingAll, setIsMarkingAll] = useState(false);
 
-  const canShow = user?.role === "ADMIN" || user?.role === "EVALUATOR";
+  const canShow = user?.role === "ADMIN" || user?.role === "EVALUATOR" || user?.role === "STARTUP";
 
   useEffect(() => {
     if (!isAuthReady || !isAuthenticated || !canShow) {
@@ -83,6 +83,15 @@ export default function NotificationsPanel({
 
     void Promise.all([fetchMyNotifications(), fetchUnreadCount()]).catch(() => {
     });
+
+    const intervalId = window.setInterval(() => {
+      void Promise.all([fetchMyNotifications(), fetchUnreadCount()]).catch(() => {
+      });
+    }, 30000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
   }, [
     isAuthReady,
     isAuthenticated,
