@@ -12,9 +12,15 @@ import {
 import type { AuthResponse, LoginPayload } from "../types/auth";
 import type { User } from "../types/user";
 import {
+  ApiError,
   apiFetch,
   AUTH_SESSION_EXPIRED_EVENT,
   AUTH_TOKEN_UPDATED_EVENT,
+  clearSession,
+  getAccessToken,
+  getRefreshToken,
+  saveSession,
+  type SessionClearedEventDetail,
 } from "../lib/api";
 
 type AuthContextType = {
@@ -23,12 +29,17 @@ type AuthContextType = {
   refreshToken: string | null;
   isAuthenticated: boolean;
   isAuthReady: boolean;
+  sessionExpired: boolean;
+  profileError: string | null;
   login: (payload: LoginPayload) => Promise<void>;
   logout: () => Promise<void>;
   loadProfile: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+const PROFILE_LOAD_ERROR =
+  "Impossible de charger votre profil pour le moment. Vérifiez votre connexion puis réessayez.";
 
 type TokenUpdatedEventDetail = {
   token: string;
@@ -44,6 +55,10 @@ async function fetchProfileWithFallback(token: string): Promise<User> {
       return await apiFetch<User>(endpoint, {}, token);
     } catch (error) {
       lastError = error;
+
+      if (!(error instanceof ApiError) || error.status !== 404) {
+        throw error;
+      }
     }
   }
 
@@ -59,58 +74,83 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [refreshToken, setRefreshToken] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
+  const [sessionExpired, setSessionExpired] = useState(false);
+  const [profileError, setProfileError] = useState<string | null>(null);
 
-  const clearAuthSession = useCallback(() => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("refreshToken");
+  const clearAuthState = useCallback(() => {
     setToken(null);
     setRefreshToken(null);
     setUser(null);
+    setProfileError(null);
   }, []);
 
   const loadProfile = useCallback(async () => {
     if (!token) return;
 
-    const profile = await fetchProfileWithFallback(token);
-    setUser(profile);
+    try {
+      const profile = await fetchProfileWithFallback(token);
+      setProfileError(null);
+      setUser(profile);
+    } catch (error) {
+      if (getAccessToken() && !(error instanceof ApiError && error.status === 409)) {
+        setProfileError(PROFILE_LOAD_ERROR);
+      }
+
+      throw error;
+    }
   }, [token]);
 
   const login = useCallback(async (payload: LoginPayload) => {
+    setProfileError(null);
     const data = await apiFetch<AuthResponse>("auth/sign-in", {
       method: "POST",
       body: JSON.stringify(payload),
     });
 
-    localStorage.setItem("token", data.token);
-    localStorage.setItem("refreshToken", data.refreshToken);
+    saveSession(data.token, data.refreshToken);
 
     setToken(data.token);
     setRefreshToken(data.refreshToken);
+    setSessionExpired(false);
 
-    const profile = await fetchProfileWithFallback(data.token);
-    setUser(profile);
+    try {
+      const profile = await fetchProfileWithFallback(data.token);
+      setUser(profile);
+    } catch (error) {
+      if (getAccessToken() && !(error instanceof ApiError && error.status === 409)) {
+        setProfileError(PROFILE_LOAD_ERROR);
+      }
+
+      throw error;
+    }
   }, []);
 
   const logout = useCallback(async () => {
+    const storedRefreshToken = getRefreshToken();
+
     try {
-      if (token) {
+      if (token && storedRefreshToken) {
         await apiFetch(
           "auth/logout",
           {
             method: "POST",
+            body: JSON.stringify({ refreshToken: storedRefreshToken }),
           },
           token,
         );
       }
     } catch {
     } finally {
-      clearAuthSession();
+      clearSession("logout");
+      clearAuthState();
+      setSessionExpired(false);
+      setProfileError(null);
     }
-  }, [token, clearAuthSession]);
+  }, [token, clearAuthState]);
 
   useEffect(() => {
-    const storedToken = localStorage.getItem("token");
-    const storedRefreshToken = localStorage.getItem("refreshToken");
+    const storedToken = getAccessToken();
+    const storedRefreshToken = getRefreshToken();
 
     if (!storedToken) {
       setIsAuthReady(true);
@@ -137,11 +177,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (typeof updatedRefreshToken === "string" && updatedRefreshToken) {
         setRefreshToken(updatedRefreshToken);
       }
+
+      setSessionExpired(false);
+      setProfileError(null);
     };
 
-    const handleSessionExpired = () => {
-      clearAuthSession();
+    const handleSessionExpired = (event: Event) => {
+      const customEvent = event as CustomEvent<SessionClearedEventDetail>;
+
+      clearAuthState();
       setIsAuthReady(true);
+      setSessionExpired(customEvent.detail?.reason === "expired");
     };
 
     window.addEventListener(AUTH_TOKEN_UPDATED_EVENT, handleTokenUpdated as EventListener);
@@ -151,7 +197,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       window.removeEventListener(AUTH_TOKEN_UPDATED_EVENT, handleTokenUpdated as EventListener);
       window.removeEventListener(AUTH_SESSION_EXPIRED_EVENT, handleSessionExpired);
     };
-  }, [clearAuthSession]);
+  }, [clearAuthState]);
 
   useEffect(() => {
     if (!token) {
@@ -159,12 +205,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    loadProfile().catch(() => {
-      clearAuthSession();
-    }).finally(() => {
-      setIsAuthReady(true);
-    });
-  }, [token, loadProfile, clearAuthSession]);
+    loadProfile()
+      .catch(() => {
+        // apiFetch centralise le nettoyage des erreurs d'authentification.
+        // Une panne réseau ou serveur ne doit pas détruire une session valide.
+      })
+      .finally(() => {
+        setIsAuthReady(true);
+      });
+  }, [token, loadProfile, clearAuthState]);
 
   const value = useMemo(
     () => ({
@@ -173,11 +222,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       refreshToken,
       isAuthenticated: !!token,
       isAuthReady,
+      sessionExpired,
+      profileError,
       login,
       logout,
       loadProfile,
     }),
-    [user, token, refreshToken, isAuthReady, login, logout, loadProfile],
+    [
+      user,
+      token,
+      refreshToken,
+      isAuthReady,
+      sessionExpired,
+      profileError,
+      login,
+      logout,
+      loadProfile,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

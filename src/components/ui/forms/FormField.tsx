@@ -32,14 +32,26 @@ export default function FormField({
         <label className={formLabelClassName} htmlFor={htmlFor}>
           {label}
         </label>
-        {required && <span className="text-xs text-brand-strong"></span>}
+        {required && (
+          <span aria-hidden="true" className="text-xs text-brand-strong">
+            *
+          </span>
+        )}
       </div>
 
       {hint && <p className={formHintClassName}>{hint}</p>}
 
       {children}
 
-      {error && <p className={formFieldErrorClassName}>{error}</p>}
+      {error && (
+        <p
+          className={formFieldErrorClassName}
+          id={htmlFor ? `${htmlFor}-error` : undefined}
+          role="alert"
+        >
+          {error}
+        </p>
+      )}
     </div>
   );
 }

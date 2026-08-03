@@ -1,14 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Activity,
   Award,
   BarChart3,
   Building2,
-  CheckCircle2,
   ChevronRight,
-  ClipboardList,
   Clock,
   FileText,
   FolderKanban,
@@ -117,10 +115,13 @@ export default function AdminDashboardPage() {
 
   const donutRadius = 40;
   const donutCircumference = 2 * Math.PI * donutRadius;
-  let donutOffset = 0;
-
-  const donutSegments = roleData.map((item) => {
+  const donutSegments = roleData.map((item, index) => {
     const dash = (item.percentage / 100) * donutCircumference;
+    const donutOffset = roleData.slice(0, index).reduce(
+      (offset, precedingItem) =>
+        offset + (precedingItem.percentage / 100) * donutCircumference,
+      0,
+    );
     const segment = (
       <circle
         key={item.role}
@@ -136,7 +137,6 @@ export default function AdminDashboardPage() {
       />
     );
 
-    donutOffset += dash;
     return segment;
   });
 

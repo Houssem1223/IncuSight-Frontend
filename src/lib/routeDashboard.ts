@@ -1,3 +1,5 @@
+import { LANDING_LOGIN_ROUTE } from "./auth-routing";
+
 export function getDashboardRoute(role?: string) {
   switch (role) {
     case "ADMIN":
@@ -7,6 +9,6 @@ export function getDashboardRoute(role?: string) {
     case "EVALUATOR":
       return "/dashboard/evaluateur";
     default:
-      return "/#landing-login";
+      return LANDING_LOGIN_ROUTE;
   }
 }

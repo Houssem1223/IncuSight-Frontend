@@ -6,22 +6,39 @@ import { useAuth } from "@/src/contexts/AuthContext";
 import { DashboardThemeProvider } from "@/src/contexts/DashboardThemeContext";
 import Sidebar from "@/src/components/dashboard/Sidebar";
 import Header from "@/src/components/dashboard/Header";
+import ProfileLoadError from "@/src/components/auth/ProfileLoadError";
+import { LANDING_LOGIN_ROUTE } from "@/src/lib/auth-routing";
 
 export default function DashboardLayout({
   children,
 }: {
   children: ReactNode;
 }) {
-  const { user, isAuthenticated, isAuthReady, logout } = useAuth();
+  const {
+    user,
+    isAuthenticated,
+    isAuthReady,
+    logout,
+    loadProfile,
+    profileError,
+    sessionExpired,
+  } = useAuth();
   const router = useRouter();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
+  const [isRetryingProfile, setIsRetryingProfile] = useState(false);
 
   useEffect(() => {
     const storedPreference = localStorage.getItem("dashboard-dark-mode");
-    if (storedPreference !== null) {
-      setDarkMode(storedPreference === "true");
+    if (storedPreference === null) {
+      return;
     }
+
+    const frame = window.requestAnimationFrame(() => {
+      setDarkMode(storedPreference === "true");
+    });
+
+    return () => window.cancelAnimationFrame(frame);
   }, []);
 
   useEffect(() => {
@@ -40,14 +57,26 @@ export default function DashboardLayout({
   }, [darkMode]);
 
   useEffect(() => {
-    if (isAuthReady && !isAuthenticated) {
-      router.push("/#landing-login");
+    if (isAuthReady && !isAuthenticated && !sessionExpired) {
+      router.replace(LANDING_LOGIN_ROUTE);
     }
-  }, [isAuthReady, isAuthenticated, router]);
+  }, [isAuthReady, isAuthenticated, router, sessionExpired]);
 
   const handleLogout = async () => {
     await logout();
-    router.push("/#landing-login");
+    router.replace(LANDING_LOGIN_ROUTE);
+  };
+
+  const handleRetryProfile = async () => {
+    setIsRetryingProfile(true);
+
+    try {
+      await loadProfile();
+    } catch {
+      // Le contexte conserve et affiche le message de profil approprié.
+    } finally {
+      setIsRetryingProfile(false);
+    }
   };
 
   if (!isAuthReady) {
@@ -65,6 +94,16 @@ export default function DashboardLayout({
   }
 
   if (!isAuthenticated || !user || !user.role) {
+    if (isAuthenticated && profileError) {
+      return (
+        <ProfileLoadError
+          isRetrying={isRetryingProfile}
+          message={profileError}
+          onRetry={() => void handleRetryProfile()}
+        />
+      );
+    }
+
     return null;
   }
 

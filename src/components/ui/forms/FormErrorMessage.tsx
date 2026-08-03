@@ -17,5 +17,9 @@ export default function FormErrorMessage({ message, className }: FormErrorMessag
     .filter(Boolean)
     .join(" ");
 
-  return <p className={wrapperClassName}>{message}</p>;
+  return (
+    <p aria-live="assertive" className={wrapperClassName} role="alert">
+      {message}
+    </p>
+  );
 }

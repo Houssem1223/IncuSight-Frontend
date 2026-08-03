@@ -10,17 +10,18 @@ import {
 } from "react";
 import { apiFetch } from "@/src/lib/api";
 import { useAuth } from "@/src/contexts/AuthContext";
-import type { UserRole } from "@/src/types/auth";
+import type {
+  SignupPayload,
+  SignupResponse,
+  UserRole,
+} from "@/src/types/auth";
 import type { User } from "@/src/types/user";
 
-type SignUpPayload = {
+type CreateUserPayload = {
   firstName?: string;
   lastName?: string;
   email: string;
   password: string;
-};
-
-type CreateUserPayload = SignUpPayload & {
   role?: UserRole;
   isActive?: boolean;
 };
@@ -56,7 +57,8 @@ type UserContextType = {
   fetchAllUsers: () => Promise<User[]>;
   findOneUser: (id: string) => Promise<User>;
   fetchMyProfile: () => Promise<User>;
-  signup: (payload: SignUpPayload) => Promise<User>;
+  signup: (payload: SignupPayload) => Promise<SignupResponse>;
+  resendVerificationEmail: (email: string) => Promise<BackendMessage>;
   createUser: (payload: CreateUserPayload) => Promise<User>;
   updateUserByAdmin: (id: string, payload: UpdateUserByAdminPayload) => Promise<User>;
   updateMyProfile: (payload: UpdateMyProfilePayload) => Promise<User>;
@@ -164,15 +166,18 @@ export function UserProvider({ children }: { children: ReactNode }) {
     );
   }, [getRequiredToken]);
 
-  const signup = useCallback(async (payload: SignUpPayload) => {
-    return apiFetchWithFallback<User>(
-      ["users/signup", "users/Signup"],
-      {
-        method: "POST",
-        body: JSON.stringify(payload),
-      },
-      undefined,
-    );
+  const signup = useCallback(async (payload: SignupPayload) => {
+    return apiFetch<SignupResponse>("users/signup", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }, []);
+
+  const resendVerificationEmail = useCallback(async (email: string) => {
+    return apiFetch<BackendMessage>("auth/resend-verification-email", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    });
   }, []);
 
   const createUser = useCallback(
@@ -323,6 +328,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
       findOneUser,
       fetchMyProfile,
       signup,
+      resendVerificationEmail,
       createUser,
       updateUserByAdmin,
       updateMyProfile,
@@ -340,6 +346,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
       findOneUser,
       fetchMyProfile,
       signup,
+      resendVerificationEmail,
       createUser,
       updateUserByAdmin,
       updateMyProfile,

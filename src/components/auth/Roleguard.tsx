@@ -23,7 +23,6 @@ export default function RoleGuard({
     }
 
     if (!isAuthenticated) {
-      router.push("/#landing-login");
       return;
     }
 

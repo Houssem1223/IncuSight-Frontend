@@ -2,6 +2,10 @@ import Link from "next/link";
 import { ArrowRight, Rocket } from "lucide-react";
 import { buttonVariants } from "@/src/components/ui/button";
 import LandingLoginCard from "@/src/components/landing/LandingLoginCard";
+import {
+  LANDING_SIGNUP_ROUTE,
+  type LandingAuthMode,
+} from "@/src/lib/auth-routing";
 
 const heroStats = [
   { label: "Programmes suivis", value: "40+" },
@@ -9,7 +13,15 @@ const heroStats = [
   { label: "Dossiers traites", value: "1.8k" },
 ];
 
-export default function HeroSection() {
+type HeroSectionProps = {
+  authMode: LandingAuthMode;
+  sessionMessage?: string;
+};
+
+export default function HeroSection({
+  authMode,
+  sessionMessage,
+}: HeroSectionProps) {
   return (
     <section className="relative overflow-hidden" id="features">
       <div className="absolute inset-0 bg-gradient-to-br from-secondary/5 via-transparent to-primary/5" />
@@ -32,10 +44,13 @@ export default function HeroSection() {
             </p>
 
             <div className="flex flex-col gap-4 sm:flex-row">
-              <a className={buttonVariants({ size: "lg", className: "gap-2" })} href="#landing-login">
+              <Link
+                className={buttonVariants({ size: "lg", className: "gap-2" })}
+                href={LANDING_SIGNUP_ROUTE}
+              >
                 Commencer votre candidature
                 <ArrowRight className="h-4 w-4" />
-              </a>
+              </Link>
               <Link
                 className={buttonVariants({ size: "lg", variant: "outline", className: "gap-2" })}
                 href="#modules"
@@ -57,7 +72,11 @@ export default function HeroSection() {
           </div>
 
           <div className="lg:pl-8">
-            <LandingLoginCard />
+            <LandingLoginCard
+              initialMode={authMode}
+              key={authMode}
+              sessionMessage={sessionMessage}
+            />
           </div>
         </div>
       </div>

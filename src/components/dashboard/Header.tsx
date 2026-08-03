@@ -122,12 +122,20 @@ export default function Header({
   }, [isNotificationsOpen]);
 
   useEffect(() => {
-    setIsMounted(true);
+    const frame = window.requestAnimationFrame(() => {
+      setIsMounted(true);
+    });
+
+    return () => window.cancelAnimationFrame(frame);
   }, []);
 
   useEffect(() => {
-    setIsNotificationsOpen(false);
-    setActiveNotification(null);
+    const frame = window.requestAnimationFrame(() => {
+      setIsNotificationsOpen(false);
+      setActiveNotification(null);
+    });
+
+    return () => window.cancelAnimationFrame(frame);
   }, [pathname]);
 
   useEffect(() => {
@@ -209,6 +217,8 @@ export default function Header({
       "/dashboard/admin/applications": "Candidatures",
       "/dashboard/admin/application-evaluators": "Affectation evaluateurs",
       "/dashboard/admin/application-evaluations": "Synthese reviews",
+      "/dashboard/admin/incubation-followups": "Suivi incubation",
+      "/dashboard/startup/incubation-followups": "Suivi incubation",
     };
 
     return routes[pathname] ?? "Tableau de bord";

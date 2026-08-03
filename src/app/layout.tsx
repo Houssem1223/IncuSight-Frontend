@@ -8,8 +8,10 @@ import { ProgramProvider } from "../contexts/ProgramContext";
 import { ApplicationProvider } from "../contexts/ApplicationContext";
 import { ApplicationEvaluatorProvider } from "../contexts/ApplicationEvaluatorContext";
 import { EvaluationProvider } from "../contexts/EvaluationContext";
+import { IncubationFollowupsProvider } from "../contexts/IncubationFollowupsContext";
 import { ProgramEvaluatorProvider } from "../contexts/ProgramEvaluatorContext";
 import { NotificationProvider } from "../contexts/NotificationContext";
+import AuthSessionRedirect from "../components/auth/AuthSessionRedirect";
 
 const geist = Geist({
   subsets: ["latin"],
@@ -38,6 +40,7 @@ export default function RootLayout({
         className={`${geist.variable} ${geistMono.variable} font-sans antialiased bg-background text-foreground`}
       >
         <AuthProvider>
+          <AuthSessionRedirect />
           <UserProvider>
             <StartupProvider>
               <ProgramProvider>
@@ -45,7 +48,9 @@ export default function RootLayout({
                   <ApplicationProvider>
                     <ApplicationEvaluatorProvider>
                       <EvaluationProvider>
-                        <NotificationProvider>{children}</NotificationProvider>
+                        <IncubationFollowupsProvider>
+                          <NotificationProvider>{children}</NotificationProvider>
+                        </IncubationFollowupsProvider>
                       </EvaluationProvider>
                     </ApplicationEvaluatorProvider>
                   </ApplicationProvider>

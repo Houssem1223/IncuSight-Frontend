@@ -3,19 +3,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Bell,
-  ClipboardList,
-  FolderKanban,
-  LayoutDashboard,
   LogOut,
   Search,
-  UserCheck,
-  Users,
   Zap,
-  type LucideIcon,
 } from "lucide-react";
 import { dashboardNavByRole } from "@/src/lib/dashboard-nav";
-import { UserRole } from "@/src/types/auth";
+import type { UserRole } from "@/src/types/auth";
 import type { User } from "@/src/types/user";
 
 interface SidebarProps {
@@ -26,31 +19,9 @@ interface SidebarProps {
   onLogout: () => void;
 }
 
-type NavItem = {
-  label: string;
-  href: string;
-  icon?: LucideIcon;
-  badge?: string;
-};
-
-const adminNavItems: NavItem[] = [
-  { label: "Overview", href: "/dashboard/admin", icon: LayoutDashboard },
-  { label: "Notifications", href: "/dashboard/admin/notifications", badge: "3", icon: Bell },
-  { label: "Startups", href: "/dashboard/admin/startups", badge: "24", icon: Users },
-  { label: "Users", href: "/dashboard/admin/users", icon: UserCheck },
-  { label: "Programs", href: "/dashboard/admin/program", badge: "5", icon: FolderKanban },
-  { label: "Applications", href: "/dashboard/admin/applications", badge: "12", icon: ClipboardList },
-  { label: "Evaluators", href: "/dashboard/admin/application-evaluators", icon: Users },
-  { label: "Reviews", href: "/dashboard/admin/application-evaluations", icon: ClipboardList },
-];
-
 export default function Sidebar({ role, user, isOpen, onClose, onLogout }: SidebarProps) {
   const pathname = usePathname();
-  const showAdminNav = role === "ADMIN";
-  const fallbackItems: NavItem[] = (dashboardNavByRole[role] || []).map((item) => ({
-    label: item.label,
-    href: item.href,
-  }));
+  const navItems = dashboardNavByRole[role];
   const initials = [user.firstName, user.lastName]
     .filter(Boolean)
     .map((value) => value?.[0])
@@ -99,7 +70,7 @@ export default function Sidebar({ role, user, isOpen, onClose, onLogout }: Sideb
         </p>
 
         <nav className="flex flex-1 flex-col gap-1">
-          {(showAdminNav ? adminNavItems : fallbackItems).map((item) => {
+          {navItems.map((item) => {
             const isActive = pathname === item.href;
             const Icon = item.icon;
 
@@ -115,11 +86,7 @@ export default function Sidebar({ role, user, isOpen, onClose, onLogout }: Sideb
                 onClick={onClose}
               >
                 <span className="flex items-center gap-3">
-                  {Icon ? (
-                    <Icon className={`h-4 w-4 ${isActive ? "text-white" : "text-slate-400"}`} />
-                  ) : (
-                    <span className={`h-2 w-2 rounded-full ${isActive ? "bg-white" : "bg-slate-500"}`} />
-                  )}
+                  <Icon className={`h-4 w-4 ${isActive ? "text-white" : "text-slate-400"}`} />
                   {item.label}
                 </span>
                 {item.badge && (
