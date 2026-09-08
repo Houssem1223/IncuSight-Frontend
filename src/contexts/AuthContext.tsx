@@ -19,6 +19,7 @@ import {
   clearSession,
   getAccessToken,
   getRefreshToken,
+  REFRESH_RATE_LIMITED_MESSAGE,
   saveSession,
   type SessionClearedEventDetail,
 } from "../lib/api";
@@ -40,6 +41,14 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const PROFILE_LOAD_ERROR =
   "Impossible de charger votre profil pour le moment. Vérifiez votre connexion puis réessayez.";
+
+function getProfileErrorMessage(error: unknown): string {
+  if (error instanceof ApiError && error.status === 429) {
+    return REFRESH_RATE_LIMITED_MESSAGE;
+  }
+
+  return PROFILE_LOAD_ERROR;
+}
 
 type TokenUpdatedEventDetail = {
   token: string;
@@ -93,7 +102,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(profile);
     } catch (error) {
       if (getAccessToken() && !(error instanceof ApiError && error.status === 409)) {
-        setProfileError(PROFILE_LOAD_ERROR);
+        setProfileError(getProfileErrorMessage(error));
       }
 
       throw error;
@@ -118,7 +127,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(profile);
     } catch (error) {
       if (getAccessToken() && !(error instanceof ApiError && error.status === 409)) {
-        setProfileError(PROFILE_LOAD_ERROR);
+        setProfileError(getProfileErrorMessage(error));
       }
 
       throw error;

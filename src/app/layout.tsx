@@ -3,14 +3,6 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "../contexts/AuthContext";
 import { UserProvider } from "../contexts/UserContext";
-import { StartupProvider } from "../contexts/StartupContext";
-import { ProgramProvider } from "../contexts/ProgramContext";
-import { ApplicationProvider } from "../contexts/ApplicationContext";
-import { ApplicationEvaluatorProvider } from "../contexts/ApplicationEvaluatorContext";
-import { EvaluationProvider } from "../contexts/EvaluationContext";
-import { IncubationFollowupsProvider } from "../contexts/IncubationFollowupsContext";
-import { ProgramEvaluatorProvider } from "../contexts/ProgramEvaluatorContext";
-import { NotificationProvider } from "../contexts/NotificationContext";
 import AuthSessionRedirect from "../components/auth/AuthSessionRedirect";
 
 const geist = Geist({
@@ -35,29 +27,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="fr">
+    <html className="scroll-smooth" lang="fr">
       <body
         className={`${geist.variable} ${geistMono.variable} font-sans antialiased bg-background text-foreground`}
       >
         <AuthProvider>
           <AuthSessionRedirect />
-          <UserProvider>
-            <StartupProvider>
-              <ProgramProvider>
-                <ProgramEvaluatorProvider>
-                  <ApplicationProvider>
-                    <ApplicationEvaluatorProvider>
-                      <EvaluationProvider>
-                        <IncubationFollowupsProvider>
-                          <NotificationProvider>{children}</NotificationProvider>
-                        </IncubationFollowupsProvider>
-                      </EvaluationProvider>
-                    </ApplicationEvaluatorProvider>
-                  </ApplicationProvider>
-                </ProgramEvaluatorProvider>
-              </ProgramProvider>
-            </StartupProvider>
-          </UserProvider>
+          <UserProvider>{children}</UserProvider>
         </AuthProvider>
       </body>
     </html>

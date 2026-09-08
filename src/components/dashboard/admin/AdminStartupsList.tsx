@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useAuth } from "@/src/contexts/AuthContext";
 import { useStartups } from "@/src/contexts/StartupContext";
+import { useAutoRefresh } from "@/src/hooks/useAutoRefresh";
 
 export default function AdminStartupsList() {
   const { isAuthReady, isAuthenticated } = useAuth();
@@ -20,29 +21,12 @@ export default function AdminStartupsList() {
     }
   }, [clearStartupsError, fetchAllStartups]);
 
-  useEffect(() => {
-    if (!isAuthReady || !isAuthenticated) {
-      return;
-    }
-
-    void refreshStartups();
-
-    const refreshIfVisible = () => {
-      if (document.visibilityState === "visible") {
-        void refreshStartups();
-      }
-    };
-
-    const intervalId = window.setInterval(refreshIfVisible, 60000);
-    window.addEventListener("focus", refreshIfVisible);
-    document.addEventListener("visibilitychange", refreshIfVisible);
-
-    return () => {
-      window.clearInterval(intervalId);
-      window.removeEventListener("focus", refreshIfVisible);
-      document.removeEventListener("visibilitychange", refreshIfVisible);
-    };
-  }, [isAuthReady, isAuthenticated, refreshStartups]);
+  useAutoRefresh(refreshStartups, {
+    enabled: isAuthReady && isAuthenticated,
+    intervalMs: 60000,
+    refreshOnFocus: true,
+    refreshOnVisibility: true,
+  });
 
   const sortedStartups = useMemo(
     () =>

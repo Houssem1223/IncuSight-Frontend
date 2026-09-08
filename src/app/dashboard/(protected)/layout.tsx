@@ -4,10 +4,38 @@ import { useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/src/contexts/AuthContext";
 import { DashboardThemeProvider } from "@/src/contexts/DashboardThemeContext";
+import { StartupProvider } from "@/src/contexts/StartupContext";
+import { ProgramProvider } from "@/src/contexts/ProgramContext";
+import { ProgramEvaluatorProvider } from "@/src/contexts/ProgramEvaluatorContext";
+import { ApplicationProvider } from "@/src/contexts/ApplicationContext";
+import { ApplicationEvaluatorProvider } from "@/src/contexts/ApplicationEvaluatorContext";
+import { EvaluationProvider } from "@/src/contexts/EvaluationContext";
+import { IncubationFollowupsProvider } from "@/src/contexts/IncubationFollowupsContext";
+import { NotificationProvider } from "@/src/contexts/NotificationContext";
 import Sidebar from "@/src/components/dashboard/Sidebar";
 import Header from "@/src/components/dashboard/Header";
 import ProfileLoadError from "@/src/components/auth/ProfileLoadError";
 import { LANDING_LOGIN_ROUTE } from "@/src/lib/auth-routing";
+
+function DashboardProviders({ children }: { children: ReactNode }) {
+  return (
+    <StartupProvider>
+      <ProgramProvider>
+        <ProgramEvaluatorProvider>
+          <ApplicationProvider>
+            <ApplicationEvaluatorProvider>
+              <EvaluationProvider>
+                <IncubationFollowupsProvider>
+                  <NotificationProvider>{children}</NotificationProvider>
+                </IncubationFollowupsProvider>
+              </EvaluationProvider>
+            </ApplicationEvaluatorProvider>
+          </ApplicationProvider>
+        </ProgramEvaluatorProvider>
+      </ProgramProvider>
+    </StartupProvider>
+  );
+}
 
 export default function DashboardLayout({
   children,
@@ -108,30 +136,32 @@ export default function DashboardLayout({
   }
 
   return (
-    <div className="min-h-screen bg-transparent">
-      <Sidebar
-        user={user}
-        role={user.role}
-        isOpen={isSidebarOpen}
-        onClose={() => setIsSidebarOpen(false)}
-        onLogout={handleLogout}
-      />
-      <DashboardThemeProvider
-        darkMode={darkMode}
-        toggleDarkMode={() => setDarkMode((current) => !current)}
-      >
-        <div className="relative flex min-h-screen flex-col md:pl-72">
-          <Header
-            user={user}
-            darkMode={darkMode}
-            onToggleDarkMode={() => setDarkMode((current) => !current)}
-            onToggleSidebar={() => setIsSidebarOpen((current) => !current)}
-          />
-          <main className="flex-1 bg-background px-4 pb-10 pt-6 text-foreground transition-colors duration-300 md:px-8">
-            {children}
-          </main>
-        </div>
-      </DashboardThemeProvider>
-    </div>
+    <DashboardProviders>
+      <div className="min-h-screen bg-transparent">
+        <Sidebar
+          user={user}
+          role={user.role}
+          isOpen={isSidebarOpen}
+          onClose={() => setIsSidebarOpen(false)}
+          onLogout={handleLogout}
+        />
+        <DashboardThemeProvider
+          darkMode={darkMode}
+          toggleDarkMode={() => setDarkMode((current) => !current)}
+        >
+          <div className="relative flex min-h-screen flex-col md:pl-72">
+            <Header
+              user={user}
+              darkMode={darkMode}
+              onToggleDarkMode={() => setDarkMode((current) => !current)}
+              onToggleSidebar={() => setIsSidebarOpen((current) => !current)}
+            />
+            <main className="flex-1 bg-background px-4 pb-10 pt-6 text-foreground transition-colors duration-300 md:px-8">
+              {children}
+            </main>
+          </div>
+        </DashboardThemeProvider>
+      </div>
+    </DashboardProviders>
   );
 }

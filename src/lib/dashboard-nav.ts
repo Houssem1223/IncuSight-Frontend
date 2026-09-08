@@ -15,11 +15,15 @@ import {
 } from "lucide-react";
 import type { UserRole } from "@/src/types/auth";
 
+// Cle vers un compteur calcule dynamiquement (contextes React), plutot qu'une
+// valeur figee : voir Sidebar.tsx pour le mapping badgeKey -> nombre reel.
+export type NavBadgeKey = "notifications" | "startups" | "programs" | "applications";
+
 export interface NavItem {
   label: string;
   href: string;
   icon: LucideIcon;
-  badge?: string;
+  badgeKey?: NavBadgeKey;
 }
 
 export const dashboardNavByRole: Record<UserRole, NavItem[]> = {
@@ -29,21 +33,21 @@ export const dashboardNavByRole: Record<UserRole, NavItem[]> = {
       label: "Notifications",
       href: "/dashboard/admin/notifications",
       icon: Bell,
-      badge: "3",
+      badgeKey: "notifications",
     },
-    { label: "Startups", href: "/dashboard/admin/startups", icon: Users, badge: "24" },
+    { label: "Startups", href: "/dashboard/admin/startups", icon: Users, badgeKey: "startups" },
     { label: "Users", href: "/dashboard/admin/users", icon: UserCheck },
     {
       label: "Programs",
       href: "/dashboard/admin/program",
       icon: FolderKanban,
-      badge: "5",
+      badgeKey: "programs",
     },
     {
       label: "Applications",
       href: "/dashboard/admin/applications",
       icon: ClipboardList,
-      badge: "12",
+      badgeKey: "applications",
     },
     {
       label: "Evaluators",

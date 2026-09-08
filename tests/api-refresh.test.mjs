@@ -45,10 +45,10 @@ globalThis.localStorage = storage;
 
 const api = await import("../src/lib/api.ts");
 
-function jsonResponse(status, body) {
+function jsonResponse(status, body, extraHeaders = {}) {
   return new Response(body === null ? null : JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...extraHeaders },
   });
 }
 
@@ -509,6 +509,98 @@ test("un second 401 après refresh ne boucle pas et nettoie la session", async (
 
   assert.equal(fetchCount, 3);
   assert.equal(refreshCount, 1);
+  assert.equal(api.getAccessToken(), null);
+  assert.equal(api.getRefreshToken(), null);
+  assert.equal(expiredEvents.count(), 1);
+  expiredEvents.stop();
+});
+
+test("un 429 sur refreshAccessToken propage le vrai statut sans nettoyer la session", async () => {
+  const expiredEvents = listenForExpiredSessions();
+  globalThis.fetch = async (url) => {
+    assert.equal(requestPath(url), "/auth/refresh-token");
+    return jsonResponse(
+      429,
+      { statusCode: 429, message: "Trop de demandes. Veuillez réessayer plus tard." },
+      { "Retry-After": "12" },
+    );
+  };
+
+  await assert.rejects(api.refreshAccessToken(), (error) => {
+    assert.ok(error instanceof api.ApiError);
+    assert.equal(error.status, 429);
+    assert.equal(error.message, "Trop de demandes. Veuillez réessayer plus tard.");
+    assert.equal(error.retryAfterSeconds, 12);
+    return true;
+  });
+
+  assert.equal(api.getAccessToken(), "old-access");
+  assert.equal(api.getRefreshToken(), "old-refresh");
+  assert.equal(expiredEvents.count(), 0);
+  expiredEvents.stop();
+});
+
+test("un 429 sur le refresh pendant apiFetch ne redirige pas vers le login", async () => {
+  const calls = [];
+  const expiredEvents = listenForExpiredSessions();
+  globalThis.fetch = async (url, options) => {
+    calls.push({ url, options });
+
+    if (requestPath(url) === "/auth/refresh-token") {
+      return jsonResponse(
+        429,
+        { statusCode: 429, message: "Trop de demandes. Veuillez réessayer plus tard." },
+        { "Retry-After": "12" },
+      );
+    }
+
+    return jsonResponse(401, { message: "Token expiré" });
+  };
+
+  await assert.rejects(api.apiFetch("protected/resource"), (error) => {
+    assert.ok(error instanceof api.ApiError);
+    assert.equal(error.status, 429);
+    assert.equal(error.retryAfterSeconds, 12);
+    return true;
+  });
+
+  assert.equal(calls.length, 2);
+  assert.equal(calls.filter(({ url }) => requestPath(url) === "/auth/refresh-token").length, 1);
+  assert.equal(api.getAccessToken(), "old-access");
+  assert.equal(api.getRefreshToken(), "old-refresh");
+  assert.equal(expiredEvents.count(), 0);
+  expiredEvents.stop();
+});
+
+test("après un 429 sur le refresh, un vrai 401 nettoie toujours la session normalement", async () => {
+  let refreshAttempts = 0;
+  const expiredEvents = listenForExpiredSessions();
+  globalThis.fetch = async (url) => {
+    if (requestPath(url) === "/auth/refresh-token") {
+      refreshAttempts += 1;
+      if (refreshAttempts === 1) {
+        return jsonResponse(429, { message: "Trop de demandes." }, { "Retry-After": "1" });
+      }
+      return jsonResponse(401, { message: "Refresh invalide" });
+    }
+    return jsonResponse(401, { message: "Token expiré" });
+  };
+
+  await assert.rejects(api.apiFetch("protected/resource"), (error) => {
+    assert.ok(error instanceof api.ApiError);
+    assert.equal(error.status, 429);
+    return true;
+  });
+  assert.equal(expiredEvents.count(), 0);
+  assert.equal(api.getAccessToken(), "old-access");
+
+  await assert.rejects(api.apiFetch("protected/resource"), (error) => {
+    assert.ok(error instanceof api.ApiError);
+    assert.equal(error.status, 401);
+    return true;
+  });
+
+  assert.equal(refreshAttempts, 2);
   assert.equal(api.getAccessToken(), null);
   assert.equal(api.getRefreshToken(), null);
   assert.equal(expiredEvents.count(), 1);

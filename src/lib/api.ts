@@ -6,6 +6,8 @@ export const AUTH_TOKEN_UPDATED_EVENT = "incusight:auth-token-updated";
 export const AUTH_SESSION_EXPIRED_EVENT = "incusight:auth-session-expired";
 export const SESSION_EXPIRED_MESSAGE =
   "Votre session a expiré. Veuillez vous reconnecter.";
+export const REFRESH_RATE_LIMITED_MESSAGE =
+  "Trop de requêtes, réessayez dans quelques instants.";
 
 const REFRESH_ENDPOINT = "auth/refresh-token";
 const ENDPOINTS_WITHOUT_REFRESH = new Set([
@@ -59,12 +61,19 @@ type RefreshState = {
 export class ApiError extends Error {
   readonly status: number;
   readonly data: unknown;
+  readonly retryAfterSeconds: number | null;
 
-  constructor(message: string, status: number, data: unknown = null) {
+  constructor(
+    message: string,
+    status: number,
+    data: unknown = null,
+    retryAfterSeconds: number | null = null,
+  ) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.data = data;
+    this.retryAfterSeconds = retryAfterSeconds;
   }
 }
 
@@ -129,6 +138,26 @@ function extractErrorMessage(data: unknown): string | null {
   }
 
   return null;
+}
+
+function extractRetryAfterSeconds(response: Response): number | null {
+  const header = response.headers.get("Retry-After");
+
+  if (!header) {
+    return null;
+  }
+
+  if (/^\d+$/.test(header)) {
+    const seconds = Number(header);
+    return Number.isFinite(seconds) ? seconds : null;
+  }
+
+  const retryAt = Date.parse(header);
+  if (!Number.isFinite(retryAt)) {
+    return null;
+  }
+
+  return Math.max(0, Math.ceil((retryAt - Date.now()) / 1_000));
 }
 
 function extractRefreshResult(data: unknown): RefreshResult | null {
@@ -303,6 +332,15 @@ export async function refreshAccessToken(): Promise<string> {
     })
       .then(({ response, data }) => {
         if (!response.ok) {
+          if (response.status === 429) {
+            throw new ApiError(
+              extractErrorMessage(data) || REFRESH_RATE_LIMITED_MESSAGE,
+              429,
+              data,
+              extractRetryAfterSeconds(response),
+            );
+          }
+
           throw new ApiError(
             extractErrorMessage(data) || SESSION_EXPIRED_MESSAGE,
             response.status,
@@ -327,7 +365,9 @@ export async function refreshAccessToken(): Promise<string> {
         return result;
       })
       .catch((error: unknown) => {
-        if (sessionIdentity === currentSessionIdentity) {
+        const isRateLimited = error instanceof ApiError && error.status === 429;
+
+        if (sessionIdentity === currentSessionIdentity && !isRateLimited) {
           expireSessionOnce();
         }
         throw error;
@@ -355,6 +395,7 @@ function toApiError(response: Response, data: unknown): ApiError {
     extractErrorMessage(data) || `La requête a échoué (${response.status}).`,
     response.status,
     data,
+    extractRetryAfterSeconds(response),
   );
 }
 
@@ -398,7 +439,10 @@ export async function apiFetch<T>(
   } else {
     try {
       refreshedToken = await refreshAccessToken();
-    } catch {
+    } catch (error) {
+      if (error instanceof ApiError) {
+        throw error;
+      }
       throw new ApiError(SESSION_EXPIRED_MESSAGE, 401);
     }
   }

@@ -83,15 +83,6 @@ export default function NotificationsPanel({
 
     void Promise.all([fetchMyNotifications(), fetchUnreadCount()]).catch(() => {
     });
-
-    const intervalId = window.setInterval(() => {
-      void Promise.all([fetchMyNotifications(), fetchUnreadCount()]).catch(() => {
-      });
-    }, 30000);
-
-    return () => {
-      window.clearInterval(intervalId);
-    };
   }, [
     isAuthReady,
     isAuthenticated,

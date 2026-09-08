@@ -11,6 +11,7 @@ import {
 } from "react";
 import { apiFetch } from "@/src/lib/api";
 import { useAuth } from "@/src/contexts/AuthContext";
+import { useAutoRefresh } from "@/src/hooks/useAutoRefresh";
 import type { Notification } from "@/src/types/notification";
 
 type NotificationContextType = {
@@ -333,6 +334,16 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       }
     });
   }, [getRequiredToken, withLoading]);
+
+  const pollUnreadCount = useCallback(
+    () => fetchUnreadCount().catch(() => {}),
+    [fetchUnreadCount],
+  );
+
+  useAutoRefresh(pollUnreadCount, {
+    enabled: Boolean(token),
+    intervalMs: 30000,
+  });
 
   const markNotificationAsRead = useCallback(
     async (id: string) => {

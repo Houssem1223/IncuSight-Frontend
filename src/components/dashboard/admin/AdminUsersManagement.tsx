@@ -1,36 +1,15 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useId, useMemo, useState } from "react";
+import { FormEvent, useCallback, useMemo, useState } from "react";
 import RoleGuard from "@/src/components/auth/Roleguard";
 import ConfirmDialog from "@/src/components/dashboard/ConfirmDialog";
-import {
-  FormActions,
-  FormErrorMessage,
-  FormField,
-  FormInput,
-  FormModal,
-  FormSelect,
-} from "@/src/components/ui/forms";
 import { useAuth } from "@/src/contexts/AuthContext";
 import { useUsers } from "@/src/contexts/UserContext";
-import type { UserRole } from "@/src/types/auth";
+import { useAutoRefresh } from "@/src/hooks/useAutoRefresh";
 import type { User } from "@/src/types/user";
-
-type CreateFormState = {
-  firstName: string;
-  lastName: string;
-  email: string;
-  password: string;
-  role: UserRole;
-};
-
-type EditFormState = {
-  id: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  role: UserRole;
-};
+import AdminUsersTable from "./users/AdminUsersTable";
+import CreateUserModal, { type CreateUserFormValues } from "./users/CreateUserModal";
+import EditUserModal, { type EditUserFormValues } from "./users/EditUserModal";
 
 type AccountStatusConfirmationState = {
   id: string;
@@ -38,7 +17,13 @@ type AccountStatusConfirmationState = {
   action: "ACTIVATE" | "DEACTIVATE";
 };
 
-const roleOptions: UserRole[] = ["ADMIN", "STARTUP", "EVALUATOR"];
+const emptyCreateForm: CreateUserFormValues = {
+  firstName: "",
+  lastName: "",
+  email: "",
+  password: "",
+  role: "STARTUP",
+};
 
 export default function AdminUsersManagement() {
   const { isAuthReady, isAuthenticated } = useAuth();
@@ -54,16 +39,10 @@ export default function AdminUsersManagement() {
     deactivateAccount,
   } = useUsers();
 
-  const [createForm, setCreateForm] = useState<CreateFormState>({
-    firstName: "",
-    lastName: "",
-    email: "",
-    password: "",
-    role: "STARTUP",
-  });
+  const [createForm, setCreateForm] = useState<CreateUserFormValues>(emptyCreateForm);
   const [isCreating, setIsCreating] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [editForm, setEditForm] = useState<EditFormState | null>(null);
+  const [editForm, setEditForm] = useState<EditUserFormValues | null>(null);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [statusLoadingUserId, setStatusLoadingUserId] = useState<string | null>(null);
   const [accountStatusConfirmation, setAccountStatusConfirmation] =
@@ -71,7 +50,6 @@ export default function AdminUsersManagement() {
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const formIdPrefix = useId();
 
   const refreshUsers = useCallback(async () => {
     clearUsersError();
@@ -109,30 +87,12 @@ export default function AdminUsersManagement() {
     });
   }, [sortedUsers, searchTerm]);
 
-  useEffect(() => {
-    if (!isAuthReady || !isAuthenticated) {
-      return;
-    }
-
-    void refreshUsers();
-
-    const refreshIfVisible = () => {
-      if (document.visibilityState === "visible") {
-        void refreshUsers();
-      }
-    };
-
-    const intervalId = window.setInterval(refreshIfVisible,60000);
-
-    window.addEventListener("focus", refreshIfVisible);
-    document.addEventListener("visibilitychange", refreshIfVisible);
-
-    return () => {
-      window.clearInterval(intervalId);
-      window.removeEventListener("focus", refreshIfVisible);
-      document.removeEventListener("visibilitychange", refreshIfVisible);
-    };
-  }, [isAuthReady, isAuthenticated, refreshUsers]);
+  useAutoRefresh(refreshUsers, {
+    enabled: isAuthReady && isAuthenticated,
+    intervalMs: 60000,
+    refreshOnFocus: true,
+    refreshOnVisibility: true,
+  });
 
   const resetActionFeedback = () => {
     setActionMessage(null);
@@ -142,13 +102,7 @@ export default function AdminUsersManagement() {
   const openCreateModal = () => {
     clearUsersError();
     resetActionFeedback();
-    setCreateForm({
-      firstName: "",
-      lastName: "",
-      email: "",
-      password: "",
-      role: "STARTUP",
-    });
+    setCreateForm(emptyCreateForm);
     setIsCreateModalOpen(true);
   };
 
@@ -160,7 +114,7 @@ export default function AdminUsersManagement() {
     setIsCreateModalOpen(false);
   };
 
-  const mapUserToEditForm = (user: User): EditFormState => ({
+  const mapUserToEditForm = (user: User): EditUserFormValues => ({
     id: user.id,
     firstName: user.firstName ?? "",
     lastName: user.lastName ?? "",
@@ -184,13 +138,7 @@ export default function AdminUsersManagement() {
 
       await refreshUsers();
 
-      setCreateForm({
-        firstName: "",
-        lastName: "",
-        email: "",
-        password: "",
-        role: "STARTUP",
-      });
+      setCreateForm(emptyCreateForm);
       setActionMessage("Utilisateur cree avec succes.");
       setIsCreateModalOpen(false);
     } catch (error) {
@@ -282,9 +230,6 @@ export default function AdminUsersManagement() {
     }
   };
 
-  const createFieldId = (field: string) => `${formIdPrefix}-create-${field}`;
-  const editFieldId = (field: string) => `${formIdPrefix}-edit-${field}`;
-
   return (
     <RoleGuard allowedRole="ADMIN">
       <section className="motion-rise dashboard-surface p-6">
@@ -337,313 +282,35 @@ export default function AdminUsersManagement() {
           </p>
         )}
 
-        {isUsersLoading && (
-          <div className="mt-6 space-y-3">
-            <div className="h-10 w-full animate-pulse rounded-xl bg-slate-100" />
-            <div className="h-10 w-full animate-pulse rounded-xl bg-slate-100" />
-            <div className="h-10 w-full animate-pulse rounded-xl bg-slate-100" />
-          </div>
-        )}
-
-        {!isUsersLoading && usersError && (
-          <p className="mt-6 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-            {usersError}
-          </p>
-        )}
-
-        {!isUsersLoading && !usersError && (
-          <div className="mt-6 overflow-hidden rounded-xl border border-border/75 bg-white/85 shadow-sm">
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-left text-sm">
-                <thead className="bg-slate-50 text-foreground-muted">
-                  <tr>
-                    <th className="px-4 py-3 font-medium">Nom</th>
-                    <th className="px-4 py-3 font-medium">Email</th>
-                    <th className="px-4 py-3 font-medium">Role</th>
-                    <th className="px-4 py-3 font-medium">Statut</th>
-                    <th className="px-4 py-3 font-medium">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredUsers.length === 0 && (
-                    <tr>
-                      <td className="px-4 py-6 text-center text-foreground-muted" colSpan={5}>
-                        {searchTerm.trim() ? "Aucun utilisateur correspondant." : "Aucun utilisateur."}
-                      </td>
-                    </tr>
-                  )}
-
-                  {filteredUsers.map((user) => {
-                    const fullName = [user.firstName, user.lastName].filter(Boolean).join(" ");
-
-                    return (
-                      <tr className="border-t border-border/60" key={user.id}>
-                        <td className="px-4 py-3 text-foreground">{fullName || "-"}</td>
-                        <td className="px-4 py-3 text-foreground">{user.email}</td>
-                        <td className="px-4 py-3 text-foreground-muted">{user.role}</td>
-                        <td className="px-4 py-3">
-                          <span
-                            className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${
-                              user.isActive === false
-                                ? "bg-red-50 text-red-700"
-                                : "bg-emerald-50 text-emerald-700"
-                            }`}
-                          >
-                            {user.isActive === false ? "Inactif" : "Actif"}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex flex-wrap gap-2">
-                            <button
-                              className="dashboard-btn rounded-lg border border-border bg-white px-3 py-1.5 text-xs font-medium text-foreground hover:border-brand/35 hover:text-brand-strong"
-                              onClick={() => startEdit(user)}
-                              type="button"
-                            >
-                              Modifier
-                            </button>
-
-                            <button
-                              className="dashboard-btn rounded-lg border border-border bg-white px-3 py-1.5 text-xs font-medium text-foreground hover:border-brand/35 hover:text-brand-strong disabled:cursor-not-allowed disabled:opacity-70"
-                              disabled={statusLoadingUserId === user.id}
-                              onClick={() => {
-                                void handleToggleAccountStatus(user);
-                              }}
-                              type="button"
-                            >
-                              {statusLoadingUserId === user.id
-                                ? "Enregistrement..."
-                                : user.isActive === false
-                                  ? "Activer"
-                                  : "Desactiver"}
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
+        <AdminUsersTable
+          error={!isUsersLoading ? usersError : null}
+          hasSearchTerm={Boolean(searchTerm.trim())}
+          isLoading={isUsersLoading}
+          onEdit={startEdit}
+          onToggleStatus={handleToggleAccountStatus}
+          statusLoadingUserId={statusLoadingUserId}
+          users={filteredUsers}
+        />
       </section>
 
-      {editForm && (
-        <FormModal
-          description="Mettez a jour les informations du compte."
-          isBusy={Boolean(editingUserId)}
-          isOpen={Boolean(editForm)}
-          onClose={cancelEdit}
-          onSubmit={handleUpdateUser}
-          title="Modifier utilisateur"
-        >
-          <FormErrorMessage message={actionError} />
+      <EditUserModal
+        error={actionError}
+        isSubmitting={Boolean(editingUserId)}
+        onChange={setEditForm}
+        onClose={cancelEdit}
+        onSubmit={handleUpdateUser}
+        values={editForm}
+      />
 
-          <FormField htmlFor={editFieldId("firstName")} label="Prenom">
-            <FormInput
-              autoFocus
-              id={editFieldId("firstName")}
-              onChange={(event) =>
-                setEditForm((current) =>
-                  current
-                    ? {
-                        ...current,
-                        firstName: event.target.value,
-                      }
-                    : current,
-                )
-              }
-              placeholder="Prenom"
-              type="text"
-              value={editForm.firstName}
-            />
-          </FormField>
-
-          <FormField htmlFor={editFieldId("lastName")} label="Nom">
-            <FormInput
-              id={editFieldId("lastName")}
-              onChange={(event) =>
-                setEditForm((current) =>
-                  current
-                    ? {
-                        ...current,
-                        lastName: event.target.value,
-                      }
-                    : current,
-                )
-              }
-              placeholder="Nom"
-              type="text"
-              value={editForm.lastName}
-            />
-          </FormField>
-
-          <FormField htmlFor={editFieldId("email")} label="Email" required>
-            <FormInput
-              id={editFieldId("email")}
-              onChange={(event) =>
-                setEditForm((current) =>
-                  current
-                    ? {
-                        ...current,
-                        email: event.target.value,
-                      }
-                    : current,
-                )
-              }
-              placeholder="Email"
-              required
-              type="email"
-              value={editForm.email}
-            />
-          </FormField>
-
-          <FormField htmlFor={editFieldId("role")} label="Role" required>
-            <FormSelect
-              id={editFieldId("role")}
-              onChange={(event) =>
-                setEditForm((current) =>
-                  current
-                    ? {
-                        ...current,
-                        role: event.target.value as UserRole,
-                      }
-                    : current,
-                )
-              }
-              required
-              value={editForm.role}
-            >
-              {roleOptions.map((role) => (
-                <option key={role} value={role}>
-                  {role}
-                </option>
-              ))}
-            </FormSelect>
-          </FormField>
-
-          <FormActions>
-            <button
-              className="dashboard-btn rounded-xl border border-border bg-white px-4 py-2 text-sm font-medium text-foreground hover:border-brand/35 hover:text-brand-strong disabled:cursor-not-allowed disabled:opacity-70"
-              disabled={Boolean(editingUserId)}
-              onClick={cancelEdit}
-              type="button"
-            >
-              Annuler
-            </button>
-
-            <button
-              className="dashboard-btn rounded-xl bg-brand px-4 py-2 text-sm font-medium text-brand-contrast hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-70"
-              disabled={editingUserId === editForm.id}
-              type="submit"
-            >
-              {editingUserId === editForm.id ? "Enregistrement..." : "Enregistrer"}
-            </button>
-          </FormActions>
-        </FormModal>
-      )}
-
-      <FormModal
-        description="Formulaire rapide, clair et fluide pour ajouter un compte."
-        isBusy={isCreating}
+      <CreateUserModal
+        error={actionError}
         isOpen={isCreateModalOpen}
+        isSubmitting={isCreating}
+        onChange={setCreateForm}
         onClose={closeCreateModal}
         onSubmit={handleCreateUser}
-        title="Creer un utilisateur"
-      >
-        <FormErrorMessage message={actionError} />
-
-        <FormField htmlFor={createFieldId("firstName")} label="Prenom">
-          <FormInput
-            autoFocus
-            id={createFieldId("firstName")}
-            onChange={(event) =>
-              setCreateForm((current) => ({ ...current, firstName: event.target.value }))
-            }
-            placeholder="Prenom"
-            type="text"
-            value={createForm.firstName}
-          />
-        </FormField>
-
-        <FormField htmlFor={createFieldId("lastName")} label="Nom">
-          <FormInput
-            id={createFieldId("lastName")}
-            onChange={(event) =>
-              setCreateForm((current) => ({ ...current, lastName: event.target.value }))
-            }
-            placeholder="Nom"
-            type="text"
-            value={createForm.lastName}
-          />
-        </FormField>
-
-        <FormField htmlFor={createFieldId("email")} label="Email" required>
-          <FormInput
-            id={createFieldId("email")}
-            onChange={(event) =>
-              setCreateForm((current) => ({ ...current, email: event.target.value }))
-            }
-            placeholder="Email"
-            required
-            type="email"
-            value={createForm.email}
-          />
-        </FormField>
-
-        <FormField htmlFor={createFieldId("password")} label="Mot de passe" required>
-          <FormInput
-            id={createFieldId("password")}
-            minLength={6}
-            onChange={(event) =>
-              setCreateForm((current) => ({ ...current, password: event.target.value }))
-            }
-            placeholder="Mot de passe"
-            required
-            type="password"
-            value={createForm.password}
-          />
-        </FormField>
-
-        <FormField htmlFor={createFieldId("role")} label="Role" required>
-          <FormSelect
-            id={createFieldId("role")}
-            onChange={(event) =>
-              setCreateForm((current) => ({
-                ...current,
-                role: event.target.value as UserRole,
-              }))
-            }
-            required
-            value={createForm.role}
-          >
-            {roleOptions.map((role) => (
-              <option key={role} value={role}>
-                {role}
-              </option>
-            ))}
-          </FormSelect>
-        </FormField>
-
-        <FormActions>
-          <button
-            className="dashboard-btn rounded-xl border border-border bg-white px-4 py-2 text-sm font-medium text-foreground hover:border-brand/35 hover:text-brand-strong"
-            onClick={closeCreateModal}
-            type="button"
-          >
-            Annuler
-          </button>
-
-          <button
-            className="dashboard-btn rounded-xl bg-brand px-4 py-2 text-sm font-medium text-brand-contrast hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-70"
-            disabled={isCreating}
-            type="submit"
-          >
-            {isCreating ? "Creation..." : "Creer"}
-          </button>
-        </FormActions>
-      </FormModal>
+        values={createForm}
+      />
 
       <ConfirmDialog
         cancelLabel="Annuler"

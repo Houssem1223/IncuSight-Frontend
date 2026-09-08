@@ -1,79 +1,36 @@
 "use client";
 
 import type { FormEvent } from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import RoleGuard from "@/src/components/auth/Roleguard";
-import FormModal from "@/src/components/ui/forms/FormModal";
 import { useApplications } from "@/src/contexts/ApplicationContext";
 import { useAuth } from "@/src/contexts/AuthContext";
+import { useAutoRefresh } from "@/src/hooks/useAutoRefresh";
 import type { Application } from "@/src/types/application";
-
-const statusOptions = ["PENDING", "ACCEPTED", "REJECTED"] as const;
-const statusFilterOptions = ["ALL", "PENDING", "ACCEPTED", "REJECTED"] as const;
-const viewModeOptions = ["TABLE", "KANBAN"] as const;
-
-type StatusFilter = (typeof statusFilterOptions)[number];
-type ViewMode = (typeof viewModeOptions)[number];
-type ApplicationStatusColumn = Exclude<StatusFilter, "ALL">;
-
-type StatusUpdateConfirmation = {
-  applicationId: string;
-  currentStatus: string;
-  nextStatus: string;
-  programLabel: string;
-  startupLabel: string;
-  comment: string;
-};
+import {
+  getProgramLabel,
+  getStartupLabel,
+  normalizeStatus,
+  statusFilterOptions,
+  viewModeOptions,
+  type ApplicationStatusColumn,
+  type StatusFilter,
+  type ViewMode,
+} from "./applications/applicationHelpers";
+import ApplicationsKanban from "./applications/ApplicationsKanban";
+import ApplicationsTable from "./applications/ApplicationsTable";
+import DecisionModal, { type StatusUpdateConfirmation } from "./applications/DecisionModal";
 
 const finalDecisionStatuses = ["ACCEPTED", "REJECTED"] as const;
 
-function formatDate(value?: string): string {
-  if (!value) {
-    return "-";
-  }
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "-";
-  }
-
-  return new Intl.DateTimeFormat("fr-FR", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(date);
+function getInitialStatusFilter(searchParams: URLSearchParams): StatusFilter {
+  const value = searchParams.get("status");
+  return value === "PENDING" || value === "ACCEPTED" || value === "REJECTED" ? value : "ALL";
 }
 
-function normalizeStatus(value?: string): string {
-  return (value || "PENDING").toUpperCase();
-}
-
-function getStatusClass(status: string): string {
-  if (status === "ACCEPTED") {
-    return "bg-emerald-50 text-emerald-700";
-  }
-
-  if (status === "REJECTED") {
-    return "bg-red-50 text-red-700";
-  }
-
-  return "bg-amber-50 text-amber-700";
-}
-
-function getProgramLabel(application: Application): string {
-  if (application.program && typeof application.program.title === "string") {
-    return application.program.title;
-  }
-
-  return application.programId;
-}
-
-function getStartupLabel(application: Application): string {
-  if (application.startup && typeof application.startup.startupName === "string") {
-    return application.startup.startupName;
-  }
-
-  return application.startupId;
+function getInitialSearchTerm(searchParams: URLSearchParams): string {
+  return searchParams.get("search") ?? "";
 }
 
 export default function AdminApplicationsManagement() {
@@ -86,9 +43,12 @@ export default function AdminApplicationsManagement() {
     fetchAllApplications,
     makeDecision,
   } = useApplications();
+  const searchParams = useSearchParams();
 
-  const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
+  const [searchTerm, setSearchTerm] = useState(() => getInitialSearchTerm(searchParams));
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(() =>
+    getInitialStatusFilter(searchParams),
+  );
   const [viewMode, setViewMode] = useState<ViewMode>("TABLE");
   const [statusDraftByApplicationId, setStatusDraftByApplicationId] = useState<
     Record<string, string>
@@ -113,30 +73,12 @@ export default function AdminApplicationsManagement() {
     }
   }, [clearApplicationsError, fetchAllApplications]);
 
-  useEffect(() => {
-    if (!isAuthReady || !isAuthenticated) {
-      return;
-    }
-
-    void refreshApplications();
-
-    const refreshIfVisible = () => {
-      if (document.visibilityState === "visible") {
-        void refreshApplications();
-      }
-    };
-
-    const intervalId = window.setInterval(refreshIfVisible, 60000);
-
-    window.addEventListener("focus", refreshIfVisible);
-    document.addEventListener("visibilitychange", refreshIfVisible);
-
-    return () => {
-      window.clearInterval(intervalId);
-      window.removeEventListener("focus", refreshIfVisible);
-      document.removeEventListener("visibilitychange", refreshIfVisible);
-    };
-  }, [isAuthReady, isAuthenticated, refreshApplications]);
+  useAutoRefresh(refreshApplications, {
+    enabled: isAuthReady && isAuthenticated,
+    intervalMs: 60000,
+    refreshOnFocus: true,
+    refreshOnVisibility: true,
+  });
 
   const sortedApplications = useMemo(
     () =>
@@ -214,6 +156,13 @@ export default function AdminApplicationsManagement() {
 
     return groups;
   }, [filteredApplications]);
+
+  const handleStatusDraftChange = (applicationId: string, status: string) => {
+    setStatusDraftByApplicationId((current) => ({
+      ...current,
+      [applicationId]: status,
+    }));
+  };
 
   const handleStatusUpdate = (application: Application) => {
     resetActionFeedback();
@@ -309,6 +258,10 @@ export default function AdminApplicationsManagement() {
     event.preventDefault();
     void confirmStatusUpdate();
   };
+
+  const isDecisionSubmitting = Boolean(
+    statusUpdateConfirmation && updatingApplicationId === statusUpdateConfirmation.applicationId,
+  );
 
   return (
     <RoleGuard allowedRole="ADMIN">
@@ -413,252 +366,33 @@ export default function AdminApplicationsManagement() {
         )}
 
         {!isApplicationsLoading && !applicationsError && viewMode === "TABLE" && (
-          <div className="mt-6 overflow-hidden rounded-xl border border-border/75 bg-white/85 shadow-sm">
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-left text-sm">
-                <thead className="bg-slate-50 text-foreground-muted">
-                  <tr>
-                    <th className="px-4 py-3 font-medium">Programme</th>
-                    <th className="px-4 py-3 font-medium">Startup</th>
-                    <th className="px-4 py-3 font-medium">Motivation</th>
-                    <th className="px-4 py-3 font-medium">Statut</th>
-                    <th className="px-4 py-3 font-medium">Cree le</th>
-                    <th className="px-4 py-3 font-medium">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredApplications.length === 0 && (
-                    <tr>
-                      <td className="px-4 py-6 text-center text-foreground-muted" colSpan={6}>
-                        {searchTerm.trim()
-                          ? "Aucune candidature correspondante trouvee."
-                          : "Aucune candidature trouvee."}
-                      </td>
-                    </tr>
-                  )}
-
-                  {filteredApplications.map((application) => {
-                    const currentStatus = normalizeStatus(application.status);
-                    const selectedStatus =
-                      statusDraftByApplicationId[application.id] || currentStatus;
-                    const hasDecision = Boolean(application.decision);
-
-                    return (
-                      <tr className="border-t border-border/60" key={application.id}>
-                        <td className="px-4 py-3 text-foreground">{getProgramLabel(application)}</td>
-                        <td className="px-4 py-3 text-foreground-muted">{getStartupLabel(application)}</td>
-                        <td className="max-w-[18rem] px-4 py-3 text-foreground-muted">
-                          <p className="line-clamp-2">{application.motivationLetter || "-"}</p>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span
-                            className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${getStatusClass(currentStatus)}`}
-                          >
-                            {currentStatus}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-foreground-muted">
-                          {formatDate(application.createdAt)}
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <select
-                              className="rounded-lg border border-border bg-white px-2.5 py-1.5 text-xs text-foreground outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20"
-                              disabled={hasDecision}
-                              onChange={(event) =>
-                                setStatusDraftByApplicationId((current) => ({
-                                  ...current,
-                                  [application.id]: event.target.value,
-                                }))
-                              }
-                              value={selectedStatus}
-                            >
-                              {statusOptions.map((status) => (
-                                <option key={status} value={status}>
-                                  {status}
-                                </option>
-                              ))}
-                            </select>
-
-                            <button
-                              className="dashboard-btn rounded-lg border border-border bg-white px-3 py-1.5 text-xs font-medium text-foreground hover:border-brand/35 hover:text-brand-strong disabled:cursor-not-allowed disabled:opacity-70"
-                              disabled={updatingApplicationId === application.id || hasDecision}
-                              onClick={() => handleStatusUpdate(application)}
-                              type="button"
-                            >
-                              {hasDecision
-                                ? "Decision enregistree"
-                                : updatingApplicationId === application.id
-                                  ? "Enregistrement..."
-                                  : "Enregistrer"}
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          <ApplicationsTable
+            applications={filteredApplications}
+            hasSearchTerm={Boolean(searchTerm.trim())}
+            onStatusDraftChange={handleStatusDraftChange}
+            onStatusUpdate={handleStatusUpdate}
+            statusDraftByApplicationId={statusDraftByApplicationId}
+            updatingApplicationId={updatingApplicationId}
+          />
         )}
 
         {!isApplicationsLoading && !applicationsError && viewMode === "KANBAN" && (
-          <div className="mt-6 grid gap-4 lg:grid-cols-3">
-            {(Object.keys(applicationsByStatus) as ApplicationStatusColumn[]).map((columnStatus) => {
-              const columnApplications = applicationsByStatus[columnStatus];
-
-              return (
-                <article className="dashboard-card p-4" key={columnStatus}>
-                  <div className="flex items-center justify-between gap-2">
-                    <h2 className="text-sm font-semibold text-foreground">{columnStatus}</h2>
-                    <span className="inline-flex rounded-full border border-border bg-white px-2.5 py-1 text-xs font-medium text-foreground-muted">
-                      {columnApplications.length}
-                    </span>
-                  </div>
-
-                  {columnApplications.length === 0 && (
-                    <p className="mt-4 rounded-xl border border-dashed border-border/80 bg-slate-50 px-3 py-4 text-center text-xs text-foreground-muted">
-                      Aucun element dans cette colonne.
-                    </p>
-                  )}
-
-                  {columnApplications.length > 0 && (
-                    <div className="mt-4 space-y-3">
-                      {columnApplications.map((application) => {
-                        const currentStatus = normalizeStatus(application.status);
-                        const selectedStatus =
-                          statusDraftByApplicationId[application.id] || currentStatus;
-                        const hasDecision = Boolean(application.decision);
-
-                        return (
-                          <div
-                            className="rounded-xl border border-border/75 bg-white p-3 shadow-sm"
-                            key={application.id}
-                          >
-                            <p className="text-sm font-semibold text-foreground">
-                              {getProgramLabel(application)}
-                            </p>
-                            <p className="mt-1 text-xs text-foreground-muted">
-                              Startup: {getStartupLabel(application)}
-                            </p>
-                            <p className="mt-1 text-xs text-foreground-muted">
-                              Cree le: {formatDate(application.createdAt)}
-                            </p>
-                            <p className="mt-2 line-clamp-3 text-xs text-foreground-muted">
-                              {application.motivationLetter || "-"}
-                            </p>
-
-                            <div className="mt-3 flex flex-wrap items-center gap-2">
-                              <span
-                                className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${getStatusClass(currentStatus)}`}
-                              >
-                                {currentStatus}
-                              </span>
-
-                              <select
-                                className="rounded-lg border border-border bg-white px-2.5 py-1.5 text-xs text-foreground outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20"
-                                disabled={hasDecision}
-                                onChange={(event) =>
-                                  setStatusDraftByApplicationId((current) => ({
-                                    ...current,
-                                    [application.id]: event.target.value,
-                                  }))
-                                }
-                                value={selectedStatus}
-                              >
-                                {statusOptions.map((status) => (
-                                  <option key={status} value={status}>
-                                    {status}
-                                  </option>
-                                ))}
-                              </select>
-
-                              <button
-                                className="dashboard-btn rounded-lg border border-border bg-white px-3 py-1.5 text-xs font-medium text-foreground hover:border-brand/35 hover:text-brand-strong disabled:cursor-not-allowed disabled:opacity-70"
-                                disabled={updatingApplicationId === application.id || hasDecision}
-                                onClick={() => handleStatusUpdate(application)}
-                                type="button"
-                              >
-                                {hasDecision
-                                  ? "Decision enregistree"
-                                  : updatingApplicationId === application.id
-                                    ? "Enregistrement..."
-                                    : "Enregistrer"}
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </article>
-              );
-            })}
-          </div>
+          <ApplicationsKanban
+            applicationsByStatus={applicationsByStatus}
+            onStatusDraftChange={handleStatusDraftChange}
+            onStatusUpdate={handleStatusUpdate}
+            statusDraftByApplicationId={statusDraftByApplicationId}
+            updatingApplicationId={updatingApplicationId}
+          />
         )}
 
-        <FormModal
-          closeLabel="Fermer"
-          description={
-            statusUpdateConfirmation
-              ? `Vous allez publier la decision ${statusUpdateConfirmation.nextStatus} pour ${statusUpdateConfirmation.startupLabel} dans ${statusUpdateConfirmation.programLabel}.`
-              : undefined
-          }
-          isBusy={Boolean(
-            statusUpdateConfirmation &&
-              updatingApplicationId === statusUpdateConfirmation.applicationId,
-          )}
-          isOpen={Boolean(statusUpdateConfirmation)}
-          maxWidthClassName="max-w-xl"
+        <DecisionModal
+          confirmation={statusUpdateConfirmation}
+          isSubmitting={isDecisionSubmitting}
           onClose={cancelStatusUpdate}
+          onCommentChange={handleDecisionCommentChange}
           onSubmit={submitDecisionForm}
-          title="Decision finale"
-        >
-          <div className="space-y-3">
-            <p className="text-xs text-foreground-muted">
-              Statut actuel: <span className="font-medium text-foreground">{statusUpdateConfirmation?.currentStatus}</span>
-            </p>
-
-            <label className="block text-sm font-medium text-foreground" htmlFor="decision-comment">
-              Commentaire (optionnel)
-            </label>
-            <textarea
-              className="min-h-28 w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-foreground outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20"
-              id="decision-comment"
-              onChange={(event) => handleDecisionCommentChange(event.target.value)}
-              placeholder="Ajoutez un contexte pour cette decision finale..."
-              value={statusUpdateConfirmation?.comment || ""}
-            />
-          </div>
-
-          <div className="mt-2 flex flex-wrap justify-end gap-2">
-            <button
-              className="dashboard-btn rounded-xl border border-border bg-white px-4 py-2 text-sm font-medium text-foreground hover:border-brand/35 hover:text-brand-strong disabled:cursor-not-allowed disabled:opacity-70"
-              disabled={Boolean(
-                statusUpdateConfirmation &&
-                  updatingApplicationId === statusUpdateConfirmation.applicationId,
-              )}
-              onClick={cancelStatusUpdate}
-              type="button"
-            >
-              Annuler
-            </button>
-            <button
-              className="dashboard-btn rounded-xl bg-brand px-4 py-2 text-sm font-medium text-brand-contrast disabled:cursor-not-allowed disabled:opacity-70"
-              disabled={Boolean(
-                statusUpdateConfirmation &&
-                  updatingApplicationId === statusUpdateConfirmation.applicationId,
-              )}
-              type="submit"
-            >
-              {statusUpdateConfirmation &&
-              updatingApplicationId === statusUpdateConfirmation.applicationId
-                ? "Enregistrement..."
-                : "Enregistrer la decision"}
-            </button>
-          </div>
-        </FormModal>
+        />
       </section>
     </RoleGuard>
   );

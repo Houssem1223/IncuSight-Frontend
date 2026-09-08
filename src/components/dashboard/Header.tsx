@@ -66,6 +66,7 @@ export default function Header({
   const [currentTime, setCurrentTime] = useState(new Date());
   const notificationsRef = useRef<HTMLDivElement | null>(null);
   const canShowNotifications = user.role === "ADMIN" || user.role === "EVALUATOR" || user.role === "STARTUP";
+  const isAdmin = user.role === "ADMIN";
   const notificationsHref =
     user.role === "ADMIN"
       ? "/dashboard/admin/notifications"
@@ -73,21 +74,6 @@ export default function Header({
         ? "/dashboard/evaluateur/notifications"
         : "/dashboard/startup/notifications";
   const pathname = usePathname();
-
-  useEffect(() => {
-    if (!canShowNotifications) {
-      return;
-    }
-
-    void fetchUnreadCount();
-    const intervalId = window.setInterval(() => {
-      void fetchUnreadCount();
-    }, 30000);
-
-    return () => {
-      window.clearInterval(intervalId);
-    };
-  }, [canShowNotifications, fetchUnreadCount]);
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
@@ -391,13 +377,15 @@ export default function Header({
             </div>
           )}
 
-          <button
-            className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-amber-400 px-4 py-2 text-sm font-semibold text-white shadow-sm"
-            type="button"
-          >
-            <Sparkles className="h-4 w-4" />
-            Actions rapides
-          </button>
+          {isAdmin && (
+            <Link
+              className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-amber-400 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-transform hover:scale-[1.02] active:scale-[0.98]"
+              href="/dashboard/admin#quick-actions"
+            >
+              <Sparkles className="h-4 w-4" />
+              Actions rapides
+            </Link>
+          )}
         </div>
       </div>
 

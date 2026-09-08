@@ -1,90 +1,25 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useId, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import RoleGuard from "@/src/components/auth/Roleguard";
 import ConfirmDialog from "@/src/components/dashboard/ConfirmDialog";
-import {
-  FormActions,
-  FormCheckbox,
-  FormDateTimeInput,
-  FormErrorMessage,
-  FormField,
-  FormInput,
-  FormModal,
-  FormTextarea,
-} from "@/src/components/ui/forms";
 import { useAuth } from "@/src/contexts/AuthContext";
 import { useProgramEvaluators } from "@/src/contexts/ProgramEvaluatorContext";
 import { usePrograms } from "@/src/contexts/ProgramContext";
 import { useUsers } from "@/src/contexts/UserContext";
+import { useAutoRefresh } from "@/src/hooks/useAutoRefresh";
 import type { Program } from "@/src/types/program";
-import type { User } from "@/src/types/user";
-
-type ProgramFormState = {
-  title: string;
-  description: string;
-  openDate: string;
-  closeDate: string;
-  isOpen: boolean;
-};
-
-type ProgramEditFormState = ProgramFormState & {
-  id: string;
-};
-
-type ProgramPayload = {
-  title: string;
-  description: string;
-  openDate: string;
-  closeDate: string;
-  isOpen: boolean;
-};
-
-function toDateTimeLocalValue(isoDate: string): string {
-  const date = new Date(isoDate);
-
-  if (Number.isNaN(date.getTime())) {
-    return "";
-  }
-
-  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
-  return localDate.toISOString().slice(0, 16);
-}
-
-function toIsoDate(localDate: string): string {
-  return new Date(localDate).toISOString();
-}
-
-function formatProgramDate(dateValue: string): string {
-  const date = new Date(dateValue);
-
-  if (Number.isNaN(date.getTime())) {
-    return "-";
-  }
-
-  return date.toLocaleString();
-}
-
-function mapProgramToForm(program: Program): ProgramEditFormState {
-  return {
-    id: program.id,
-    title: program.title,
-    description: program.description,
-    openDate: toDateTimeLocalValue(program.openDate),
-    closeDate: toDateTimeLocalValue(program.closeDate),
-    isOpen: program.isOpen,
-  };
-}
-
-function buildProgramPayload(form: ProgramFormState): ProgramPayload {
-  return {
-    title: form.title.trim(),
-    description: form.description.trim(),
-    openDate: toIsoDate(form.openDate),
-    closeDate: toIsoDate(form.closeDate),
-    isOpen: form.isOpen,
-  };
-}
+import CreateProgramModal from "./programs/CreateProgramModal";
+import EditProgramModal from "./programs/EditProgramModal";
+import {
+  buildProgramPayload,
+  emptyProgramForm,
+  getProgramFormValidationError,
+  mapProgramToForm,
+  type ProgramEditFormState,
+  type ProgramFormState,
+} from "./programs/programHelpers";
+import ProgramsTable from "./programs/ProgramsTable";
 
 export default function AdminProgramsManagement() {
   const { isAuthReady, isAuthenticated } = useAuth();
@@ -108,13 +43,7 @@ export default function AdminProgramsManagement() {
   const { users, fetchAllUsers } = useUsers();
 
   const [searchTerm, setSearchTerm] = useState("");
-  const [createForm, setCreateForm] = useState<ProgramFormState>({
-    title: "",
-    description: "",
-    openDate: "",
-    closeDate: "",
-    isOpen: false,
-  });
+  const [createForm, setCreateForm] = useState<ProgramFormState>(emptyProgramForm);
   const [editForm, setEditForm] = useState<ProgramEditFormState | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -126,7 +55,6 @@ export default function AdminProgramsManagement() {
   const [programToDelete, setProgramToDelete] = useState<Program | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
-  const formIdPrefix = useId();
 
   const resetActionFeedback = () => {
     setActionMessage(null);
@@ -147,27 +75,16 @@ export default function AdminProgramsManagement() {
       return;
     }
 
-    void refreshPrograms();
     void fetchAllUsers().catch(() => {
     });
+  }, [isAuthReady, isAuthenticated, fetchAllUsers]);
 
-    const refreshIfVisible = () => {
-      if (document.visibilityState === "visible") {
-        void refreshPrograms();
-      }
-    };
-
-    const intervalId = window.setInterval(refreshIfVisible, 60000);
-
-    window.addEventListener("focus", refreshIfVisible);
-    document.addEventListener("visibilitychange", refreshIfVisible);
-
-    return () => {
-      window.clearInterval(intervalId);
-      window.removeEventListener("focus", refreshIfVisible);
-      document.removeEventListener("visibilitychange", refreshIfVisible);
-    };
-  }, [isAuthReady, isAuthenticated, refreshPrograms, fetchAllUsers]);
+  useAutoRefresh(refreshPrograms, {
+    enabled: isAuthReady && isAuthenticated,
+    intervalMs: 60000,
+    refreshOnFocus: true,
+    refreshOnVisibility: true,
+  });
 
   useEffect(() => {
     if (!isAuthReady || !isAuthenticated || programs.length === 0) {
@@ -215,9 +132,11 @@ export default function AdminProgramsManagement() {
     [users],
   );
 
-  const evaluatorLabel = (evaluator: User) => {
-    const fullName = [evaluator.firstName, evaluator.lastName].filter(Boolean).join(" ").trim();
-    return fullName ? `${fullName} (${evaluator.email})` : evaluator.email;
+  const handleSelectEvaluator = (programId: string, evaluatorId: string) => {
+    setSelectedEvaluatorByProgramId((current) => ({
+      ...current,
+      [programId]: evaluatorId,
+    }));
   };
 
   const handleAssignEvaluator = async (programId: string) => {
@@ -263,13 +182,7 @@ export default function AdminProgramsManagement() {
   const openCreateModal = () => {
     clearProgramsError();
     resetActionFeedback();
-    setCreateForm({
-      title: "",
-      description: "",
-      openDate: "",
-      closeDate: "",
-      isOpen: false,
-    });
+    setCreateForm(emptyProgramForm);
     setIsCreateModalOpen(true);
   };
 
@@ -285,26 +198,10 @@ export default function AdminProgramsManagement() {
     event.preventDefault();
     resetActionFeedback();
 
-    const title = createForm.title.trim();
-    const description = createForm.description.trim();
+    const validationError = getProgramFormValidationError(createForm);
 
-    if (!title) {
-      setActionError("Program title is required.");
-      return;
-    }
-
-    if (!description) {
-      setActionError("Program description is required.");
-      return;
-    }
-
-    if (!createForm.openDate || !createForm.closeDate) {
-      setActionError("Open and close dates are required.");
-      return;
-    }
-
-    if (new Date(createForm.closeDate).getTime() <= new Date(createForm.openDate).getTime()) {
-      setActionError("Close date must be after open date.");
+    if (validationError) {
+      setActionError(validationError);
       return;
     }
 
@@ -314,13 +211,7 @@ export default function AdminProgramsManagement() {
       await createProgram(buildProgramPayload(createForm));
       await refreshPrograms();
 
-      setCreateForm({
-        title: "",
-        description: "",
-        openDate: "",
-        closeDate: "",
-        isOpen: false,
-      });
+      setCreateForm(emptyProgramForm);
       setActionMessage("Programme cree avec succes.");
       setIsCreateModalOpen(false);
     } catch (error) {
@@ -352,26 +243,10 @@ export default function AdminProgramsManagement() {
 
     resetActionFeedback();
 
-    const title = editForm.title.trim();
-    const description = editForm.description.trim();
+    const validationError = getProgramFormValidationError(editForm);
 
-    if (!title) {
-      setActionError("Program title is required.");
-      return;
-    }
-
-    if (!description) {
-      setActionError("Program description is required.");
-      return;
-    }
-
-    if (!editForm.openDate || !editForm.closeDate) {
-      setActionError("Open and close dates are required.");
-      return;
-    }
-
-    if (new Date(editForm.closeDate).getTime() <= new Date(editForm.openDate).getTime()) {
-      setActionError("Close date must be after open date.");
+    if (validationError) {
+      setActionError(validationError);
       return;
     }
 
@@ -426,9 +301,6 @@ export default function AdminProgramsManagement() {
       setProgramToDelete(null);
     }
   };
-
-  const createFieldId = (field: string) => `${formIdPrefix}-create-${field}`;
-  const editFieldId = (field: string) => `${formIdPrefix}-edit-${field}`;
 
   return (
     <RoleGuard allowedRole="ADMIN">
@@ -496,164 +368,25 @@ export default function AdminProgramsManagement() {
         )}
 
         {!isProgramsLoading && !programsError && (
-          <div className="mt-6 overflow-hidden rounded-xl border border-border/75 bg-white/85 shadow-sm">
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-left text-sm">
-                <thead className="bg-slate-50 text-foreground-muted">
-                  <tr>
-                    <th className="px-4 py-3 font-medium">Programme</th>
-                    <th className="px-4 py-3 font-medium">Description</th>
-                    <th className="px-4 py-3 font-medium">Window</th>
-                    <th className="px-4 py-3 font-medium">Statut</th>
-                    <th className="px-4 py-3 font-medium">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredPrograms.length === 0 && (
-                    <tr>
-                      <td className="px-4 py-6 text-center text-foreground-muted" colSpan={5}>
-                        {searchTerm.trim() ? "Aucun programme correspondant." : "Aucun programme."}
-                      </td>
-                    </tr>
-                  )}
-
-                  {filteredPrograms.map((program) => {
-                    const description = program.description || "-";
-                    const openDate = formatProgramDate(program.openDate);
-                    const closeDate = formatProgramDate(program.closeDate);
-                    const assignedEvaluators = evaluatorsByProgramId[program.id] || [];
-                    const assignedEvaluatorIds = new Set(assignedEvaluators.map((evaluator) => evaluator.id));
-                    const availableEvaluators = evaluatorUsers.filter(
-                      (evaluator) => !assignedEvaluatorIds.has(evaluator.id),
-                    );
-                    const selectedEvaluatorId = selectedEvaluatorByProgramId[program.id] || "";
-                    const isAssigningEvaluator = assigningEvaluatorProgramId === program.id;
-                    const isRemovingEvaluator = removingEvaluatorProgramId === program.id;
-                    const canAssignEvaluator = !isAssigningEvaluator && availableEvaluators.length > 0;
-
-                    return (
-                      <tr className="border-t border-border/60" key={program.id}>
-                        <td className="px-4 py-3 text-foreground">{program.title}</td>
-                        <td className="px-4 py-3 text-foreground-muted">{description}</td>
-                        <td className="px-4 py-3 text-foreground-muted">
-                          {openDate}
-                          <br />
-                          <span className="text-xs">a {closeDate}</span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span
-                            className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${
-                              program.isOpen
-                                ? "bg-emerald-50 text-emerald-700"
-                                : "bg-slate-100 text-slate-700"
-                            }`}
-                          >
-                            {program.isOpen ? "Ouvert" : "Ferme"}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex flex-wrap gap-2">
-                            <button
-                              className="dashboard-btn rounded-lg border border-border bg-white px-3 py-1.5 text-xs font-medium text-foreground hover:border-brand/35 hover:text-brand-strong"
-                              onClick={() => startEdit(program)}
-                              type="button"
-                            >
-                              Modifier
-                            </button>
-                            <button
-                              className="dashboard-btn rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-70"
-                              disabled={deletingProgramId === program.id}
-                              onClick={() => handleDeleteProgram(program)}
-                              type="button"
-                            >
-                              {deletingProgramId === program.id ? "Suppression..." : "Supprimer"}
-                            </button>
-                          </div>
-
-                          <div className="mt-3 space-y-2 rounded-lg border border-border/70 bg-slate-50 p-2.5">
-                            <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-foreground-muted">
-                              Evaluateurs affectes ({assignedEvaluators.length})
-                            </p>
-
-                            {assignedEvaluators.length === 0 && (
-                              <p className="text-xs text-foreground-muted">Aucun evaluateur affecte.</p>
-                            )}
-
-                            {assignedEvaluators.length > 0 && (
-                              <div className="flex flex-wrap gap-2">
-                                {assignedEvaluators.map((evaluator) => (
-                                  <span
-                                    className="inline-flex items-center gap-1 rounded-full border border-border bg-white px-2.5 py-1 text-xs text-foreground"
-                                    key={evaluator.id}
-                                  >
-                                    {evaluatorLabel(evaluator)}
-                                    <button
-                                      className="ml-1 rounded-full border border-red-200 bg-red-50 px-1.5 py-0.5 text-[10px] font-medium text-red-700 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-70"
-                                      disabled={isRemovingEvaluator}
-                                      onClick={() => {
-                                        void handleRemoveEvaluator(program.id, evaluator.id);
-                                      }}
-                                      type="button"
-                                    >
-                                      {isRemovingEvaluator ? "..." : "x"}
-                                    </button>
-                                  </span>
-                                ))}
-                              </div>
-                            )}
-
-                            <div className="flex flex-wrap items-center gap-2">
-                              <select
-                                className="rounded-lg border border-border bg-white px-2.5 py-1.5 text-xs text-foreground outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20 disabled:cursor-not-allowed disabled:opacity-70"
-                                disabled={!canAssignEvaluator}
-                                onChange={(event) =>
-                                  setSelectedEvaluatorByProgramId((current) => ({
-                                    ...current,
-                                    [program.id]: event.target.value,
-                                  }))
-                                }
-                                value={selectedEvaluatorId}
-                              >
-                                <option value="">Selectionner un evaluateur</option>
-                                {availableEvaluators.map((evaluator) => (
-                                  <option key={evaluator.id} value={evaluator.id}>
-                                    {evaluatorLabel(evaluator)}
-                                  </option>
-                                ))}
-                              </select>
-
-                              <button
-                                className="dashboard-btn rounded-lg border border-border bg-white px-3 py-1.5 text-xs font-medium text-foreground hover:border-brand/35 hover:text-brand-strong disabled:cursor-not-allowed disabled:opacity-70"
-                                disabled={!selectedEvaluatorId || !canAssignEvaluator}
-                                onClick={() => {
-                                  void handleAssignEvaluator(program.id);
-                                }}
-                                type="button"
-                              >
-                                {isAssigningEvaluator ? "Affectation..." : "Affecter"}
-                              </button>
-                            </div>
-
-                            {availableEvaluators.length === 0 && evaluatorUsers.length > 0 && (
-                              <p className="text-xs text-foreground-muted">
-                                Tous les evaluateurs sont deja affectes a ce programme.
-                              </p>
-                            )}
-
-                            {evaluatorUsers.length === 0 && (
-                              <p className="text-xs text-foreground-muted">
-                                Aucun utilisateur evaluateur disponible.
-                              </p>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          <ProgramsTable
+            assigningEvaluatorProgramId={assigningEvaluatorProgramId}
+            deletingProgramId={deletingProgramId}
+            evaluatorUsers={evaluatorUsers}
+            evaluatorsByProgramId={evaluatorsByProgramId}
+            hasSearchTerm={Boolean(searchTerm.trim())}
+            onAssignEvaluator={(programId) => {
+              void handleAssignEvaluator(programId);
+            }}
+            onDelete={handleDeleteProgram}
+            onEdit={startEdit}
+            onRemoveEvaluator={(programId, evaluatorId) => {
+              void handleRemoveEvaluator(programId, evaluatorId);
+            }}
+            onSelectEvaluator={handleSelectEvaluator}
+            programs={filteredPrograms}
+            removingEvaluatorProgramId={removingEvaluatorProgramId}
+            selectedEvaluatorByProgramId={selectedEvaluatorByProgramId}
+          />
         )}
 
         <ConfirmDialog
@@ -675,213 +408,24 @@ export default function AdminProgramsManagement() {
         />
       </section>
 
-      {editForm && (
-        <FormModal
-          description="Ajustez les informations et les dates du programme."
-          isBusy={Boolean(editingProgramId)}
-          isOpen={Boolean(editForm)}
-          onClose={cancelEdit}
-          onSubmit={handleUpdateProgram}
-          title="Modifier programme"
-        >
-          <FormErrorMessage message={actionError} />
+      <EditProgramModal
+        error={actionError}
+        isSubmitting={Boolean(editingProgramId)}
+        onChange={setEditForm}
+        onClose={cancelEdit}
+        onSubmit={handleUpdateProgram}
+        values={editForm}
+      />
 
-          <FormField htmlFor={editFieldId("title")} label="Titre" required>
-            <FormInput
-              autoFocus
-              id={editFieldId("title")}
-              onChange={(event) =>
-                setEditForm((current) =>
-                  current
-                    ? {
-                        ...current,
-                        title: event.target.value,
-                      }
-                    : current,
-                )
-              }
-              placeholder="Titre du programme"
-              required
-              type="text"
-              value={editForm.title}
-            />
-          </FormField>
-
-          <FormField htmlFor={editFieldId("description")} label="Description" required>
-            <FormTextarea
-              id={editFieldId("description")}
-              onChange={(event) =>
-                setEditForm((current) =>
-                  current
-                    ? {
-                        ...current,
-                        description: event.target.value,
-                      }
-                    : current,
-                )
-              }
-              placeholder="Description du programme"
-              required
-              value={editForm.description}
-            />
-          </FormField>
-
-          <FormField htmlFor={editFieldId("openDate")} label="Date d'ouverture" required>
-            <FormDateTimeInput
-              id={editFieldId("openDate")}
-              onChange={(event) =>
-                setEditForm((current) =>
-                  current
-                    ? {
-                        ...current,
-                        openDate: event.target.value,
-                      }
-                    : current,
-                )
-              }
-              required
-              value={editForm.openDate}
-            />
-          </FormField>
-
-          <FormField htmlFor={editFieldId("closeDate")} label="Date de fermeture" required>
-            <FormDateTimeInput
-              id={editFieldId("closeDate")}
-              onChange={(event) =>
-                setEditForm((current) =>
-                  current
-                    ? {
-                        ...current,
-                        closeDate: event.target.value,
-                      }
-                    : current,
-                )
-              }
-              required
-              value={editForm.closeDate}
-            />
-          </FormField>
-
-          <FormCheckbox
-            checked={editForm.isOpen}
-            label="Programme actuellement ouvert"
-            onChange={(event) =>
-              setEditForm((current) =>
-                current
-                  ? {
-                      ...current,
-                      isOpen: event.target.checked,
-                    }
-                  : current,
-              )
-            }
-          />
-
-          <FormActions>
-            <button
-              className="dashboard-btn rounded-xl border border-border bg-white px-4 py-2 text-sm font-medium text-foreground hover:border-brand/35 hover:text-brand-strong disabled:cursor-not-allowed disabled:opacity-70"
-              disabled={Boolean(editingProgramId)}
-              onClick={cancelEdit}
-              type="button"
-            >
-              Annuler
-            </button>
-
-            <button
-              className="dashboard-btn rounded-xl bg-brand px-4 py-2 text-sm font-medium text-brand-contrast hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-70"
-              disabled={editingProgramId === editForm.id}
-              type="submit"
-            >
-              {editingProgramId === editForm.id ? "Enregistrement..." : "Enregistrer"}
-            </button>
-          </FormActions>
-        </FormModal>
-      )}
-
-      <FormModal
-        description="Formulaire moderne pour publier rapidement un nouveau programme."
-        isBusy={isCreating}
+      <CreateProgramModal
+        error={actionError}
         isOpen={isCreateModalOpen}
+        isSubmitting={isCreating}
+        onChange={setCreateForm}
         onClose={closeCreateModal}
         onSubmit={handleCreateProgram}
-        title="Creer un programme"
-      >
-        <FormErrorMessage message={actionError} />
-
-        <FormField htmlFor={createFieldId("title")} label="Titre" required>
-          <FormInput
-            autoFocus
-            id={createFieldId("title")}
-            onChange={(event) =>
-              setCreateForm((current) => ({ ...current, title: event.target.value }))
-            }
-            placeholder="Titre du programme"
-            required
-            type="text"
-            value={createForm.title}
-          />
-        </FormField>
-
-        <FormField htmlFor={createFieldId("description")} label="Description" required>
-          <FormTextarea
-            id={createFieldId("description")}
-            onChange={(event) =>
-              setCreateForm((current) => ({ ...current, description: event.target.value }))
-            }
-            placeholder="Description du programme"
-            required
-            value={createForm.description}
-          />
-        </FormField>
-
-        <FormField htmlFor={createFieldId("openDate")} label="Date d'ouverture" required>
-          <FormDateTimeInput
-            id={createFieldId("openDate")}
-            onChange={(event) =>
-              setCreateForm((current) => ({ ...current, openDate: event.target.value }))
-            }
-            required
-            value={createForm.openDate}
-          />
-        </FormField>
-
-        <FormField htmlFor={createFieldId("closeDate")} label="Date de fermeture" required>
-          <FormDateTimeInput
-            id={createFieldId("closeDate")}
-            onChange={(event) =>
-              setCreateForm((current) => ({ ...current, closeDate: event.target.value }))
-            }
-            required
-            value={createForm.closeDate}
-          />
-        </FormField>
-
-        <FormCheckbox
-          checked={createForm.isOpen}
-          label="Programme actuellement ouvert"
-          onChange={(event) =>
-            setCreateForm((current) => ({ ...current, isOpen: event.target.checked }))
-          }
-        />
-
-        <FormActions>
-          <button
-            className="dashboard-btn rounded-xl border border-border bg-white px-4 py-2 text-sm font-medium text-foreground hover:border-brand/35 hover:text-brand-strong"
-            onClick={closeCreateModal}
-            type="button"
-          >
-            Annuler
-          </button>
-
-          <button
-            className="dashboard-btn rounded-xl bg-brand px-4 py-2 text-sm font-medium text-brand-contrast hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-70"
-            disabled={isCreating}
-            type="submit"
-          >
-            {isCreating ? "Creation..." : "Creer"}
-          </button>
-        </FormActions>
-      </FormModal>
+        values={createForm}
+      />
     </RoleGuard>
   );
 }

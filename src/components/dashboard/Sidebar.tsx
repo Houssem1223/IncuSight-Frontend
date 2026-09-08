@@ -7,7 +7,11 @@ import {
   Search,
   Zap,
 } from "lucide-react";
-import { dashboardNavByRole } from "@/src/lib/dashboard-nav";
+import { useApplications } from "@/src/contexts/ApplicationContext";
+import { useNotifications } from "@/src/contexts/NotificationContext";
+import { usePrograms } from "@/src/contexts/ProgramContext";
+import { useStartups } from "@/src/contexts/StartupContext";
+import { dashboardNavByRole, type NavBadgeKey } from "@/src/lib/dashboard-nav";
 import type { UserRole } from "@/src/types/auth";
 import type { User } from "@/src/types/user";
 
@@ -22,6 +26,21 @@ interface SidebarProps {
 export default function Sidebar({ role, user, isOpen, onClose, onLogout }: SidebarProps) {
   const pathname = usePathname();
   const navItems = dashboardNavByRole[role];
+  const { unreadCount } = useNotifications();
+  const { startups } = useStartups();
+  const { programs } = usePrograms();
+  const { applications } = useApplications();
+
+  // Contextes partages avec les pages de gestion admin (voir AdminLayout pour
+  // le refresh periodique) : la sidebar ne fait aucun fetch, elle lit l'etat
+  // deja charge par ces memes contextes.
+  const badgeCounts: Record<NavBadgeKey, number> = {
+    notifications: unreadCount,
+    startups: startups.length,
+    programs: programs.length,
+    applications: applications.length,
+  };
+
   const initials = [user.firstName, user.lastName]
     .filter(Boolean)
     .map((value) => value?.[0])
@@ -73,6 +92,7 @@ export default function Sidebar({ role, user, isOpen, onClose, onLogout }: Sideb
           {navItems.map((item) => {
             const isActive = pathname === item.href;
             const Icon = item.icon;
+            const badgeCount = item.badgeKey ? badgeCounts[item.badgeKey] : undefined;
 
             return (
               <Link
@@ -89,11 +109,11 @@ export default function Sidebar({ role, user, isOpen, onClose, onLogout }: Sideb
                   <Icon className={`h-4 w-4 ${isActive ? "text-white" : "text-slate-400"}`} />
                   {item.label}
                 </span>
-                {item.badge && (
+                {Boolean(badgeCount) && (
                   <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
                     isActive ? "bg-white/20 text-white" : "bg-slate-700 text-slate-300"
                   }`}>
-                    {item.badge}
+                    {badgeCount}
                   </span>
                 )}
               </Link>
@@ -101,23 +121,21 @@ export default function Sidebar({ role, user, isOpen, onClose, onLogout }: Sideb
           })}
         </nav>
         <div className="border-t border-slate-700 p-3">
-        <div className="flex items-center gap-3 rounded-xl bg-slate-700/50 p-3">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-orange-500 to-pink-500 text-sm font-bold text-white shadow-md">               
+          <div className="flex w-full items-center justify-between gap-3 rounded-xl bg-slate-700/50 p-3">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-orange-500 to-pink-500 text-sm font-bold text-white shadow-md">
                  {initials}
               </div>
-              <div>
-                <p className="text-sm font-semibold text-white">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-white">
                   {user.firstName || "Admin"} {user.lastName || ""}
                 </p>
                 <p className="text-xs text-slate-400">{roleLabel}</p>
               </div>
             </div>
             <button
-            
               aria-label="Se deconnecter"
-              className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-slate-600 hover:text-white"
+              className="shrink-0 rounded-lg p-2 text-slate-400 transition-colors hover:bg-slate-600 hover:text-white"
               onClick={onLogout}
               title="Se deconnecter"
               type="button"
@@ -125,7 +143,6 @@ export default function Sidebar({ role, user, isOpen, onClose, onLogout }: Sideb
               <LogOut className="h-4 w-4" />
             </button>
           </div>
-        </div>
         </div>
       </aside>
     </>
