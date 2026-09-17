@@ -1,23 +1,11 @@
 "use client";
 
-import { useCallback, useState, type ReactNode } from "react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { useCallback, type ReactNode } from "react";
 import { useApplications } from "@/src/contexts/ApplicationContext";
 import { useAuth } from "@/src/contexts/AuthContext";
 import { useAutoRefresh } from "@/src/hooks/useAutoRefresh";
 import { usePrograms } from "@/src/contexts/ProgramContext";
 import { useStartups } from "@/src/contexts/StartupContext";
-
-function createDashboardQueryClient() {
-  return new QueryClient({
-    defaultOptions: {
-      queries: {
-        staleTime: 30_000,
-        refetchOnWindowFocus: false,
-      },
-    },
-  });
-}
 
 // 5 min : ces listes changent rarement d'une minute a l'autre, contrairement
 // aux notifications (deja rafraichies toutes les 30s par NotificationContext).
@@ -50,9 +38,10 @@ function useSidebarCountsBootstrap() {
   });
 }
 
+// Le QueryClientProvider est remonte au layout protege (DashboardProviders) :
+// il est desormais partage par les trois roles, pas seulement par l'admin.
 export default function AdminLayout({ children }: { children: ReactNode }) {
-  const [queryClient] = useState(createDashboardQueryClient);
   useSidebarCountsBootstrap();
 
-  return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
+  return <>{children}</>;
 }

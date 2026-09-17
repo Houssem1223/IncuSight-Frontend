@@ -64,6 +64,7 @@ export const dashboardNavByRole: Record<UserRole, NavItem[]> = {
       href: "/dashboard/admin/incubation-followups",
       icon: Activity,
     },
+    { label: "Mon compte", href: "/dashboard/admin/profile", icon: UserCircle },
   ],
   STARTUP: [
     { label: "Dashboard", href: "/dashboard/startup", icon: LayoutDashboard },
@@ -75,7 +76,7 @@ export const dashboardNavByRole: Record<UserRole, NavItem[]> = {
       href: "/dashboard/startup/incubation-followups",
       icon: Activity,
     },
-    { label: "Profile", href: "/dashboard/startup/profile", icon: UserCircle },
+    { label: "Mon compte", href: "/dashboard/startup/profile", icon: UserCircle },
   ],
   EVALUATOR: [
     { label: "Dashboard", href: "/dashboard/evaluateur", icon: LayoutDashboard },
@@ -86,5 +87,6 @@ export const dashboardNavByRole: Record<UserRole, NavItem[]> = {
       href: "/dashboard/evaluateur/assignments",
       icon: ListChecks,
     },
+    { label: "Mon compte", href: "/dashboard/evaluateur/profile", icon: UserCircle },
   ],
 };

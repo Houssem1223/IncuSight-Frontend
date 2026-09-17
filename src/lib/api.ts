@@ -1,4 +1,4 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL?.trim().replace(/\/+$/, "");
+export const API_URL = process.env.NEXT_PUBLIC_API_URL?.trim().replace(/\/+$/, "");
 
 export const ACCESS_TOKEN_KEY = "token";
 export const REFRESH_TOKEN_KEY = "refreshToken";
@@ -20,6 +20,7 @@ const ENDPOINTS_WITHOUT_REFRESH = new Set([
   "auth/resend-verification-email",
   "auth/verify-email",
   "program/public",
+  "startup/public",
 ]);
 const ENDPOINTS_WITHOUT_BEARER = new Set([
   "auth/sign-in",
@@ -30,6 +31,7 @@ const ENDPOINTS_WITHOUT_BEARER = new Set([
   "auth/resend-verification-email",
   "auth/verify-email",
   "program/public",
+  "startup/public",
 ]);
 
 export type SessionClearReason = "logout" | "expired";
@@ -298,7 +300,10 @@ async function requestJson(
   const headers = new Headers(requestOptions.headers);
   const normalizedAccessToken = normalizeToken(token);
 
-  if (!headers.has("Content-Type")) {
+  // Avec un FormData (upload multipart), le navigateur doit poser lui-meme
+  // "multipart/form-data; boundary=..." — forcer application/json ici empeche
+  // le serveur de parser le corps.
+  if (!(requestOptions.body instanceof FormData) && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
 
@@ -399,11 +404,53 @@ function toApiError(response: Response, data: unknown): ApiError {
   );
 }
 
+export type ApiResult<T> = {
+  data: T;
+  /**
+   * Total renvoye par l'en-tete `X-Total-Count`, ou null si absent.
+   *
+   * Les listes paginees du backend (`GET /application`, `GET /notifications`,
+   * `GET /users`) renvoient toujours un tableau JSON, jamais
+   * une enveloppe `{ data, total }` — choix delibere cote serveur pour ne pas
+   * casser les types existants. Le total passe donc par cet en-tete.
+   */
+  total: number | null;
+};
+
+function readTotalCount(response: Response): number | null {
+  const raw = response.headers.get("X-Total-Count");
+
+  if (raw === null) {
+    return null;
+  }
+
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+/** Variante d'`apiFetch` qui expose aussi le total de pagination. */
+export async function apiFetchWithTotal<T>(
+  endpoint: string,
+  options: ApiRequestOptions = {},
+  token?: string,
+): Promise<ApiResult<T>> {
+  return apiFetchInternal<T>(endpoint, options, token);
+}
+
 export async function apiFetch<T>(
   endpoint: string,
   options: ApiRequestOptions = {},
   token?: string,
 ): Promise<T> {
+  const { data } = await apiFetchInternal<T>(endpoint, options, token);
+  return data;
+}
+
+async function apiFetchInternal<T>(
+  endpoint: string,
+  options: ApiRequestOptions = {},
+  token?: string,
+): Promise<ApiResult<T>> {
   const endpointPath = getEndpointPath(endpoint);
   const requestSessionIdentity = sessionIdentity;
   const explicitToken = normalizeToken(token);
@@ -418,7 +465,7 @@ export async function apiFetch<T>(
   }
 
   if (response.ok) {
-    return data as T;
+    return { data: data as T, total: readTotalCount(response) };
   }
 
   const canAttemptRefresh =
@@ -459,7 +506,7 @@ export async function apiFetch<T>(
   }
 
   if (retried.response.ok) {
-    return retried.data as T;
+    return { data: retried.data as T, total: readTotalCount(retried.response) };
   }
 
   if (retried.response.status === 401) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, Clock3, Plus } from "lucide-react";
+import { CalendarDays, Clock3, Plus, TriangleAlert } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { Progress } from "@/src/components/ui/progress";
 import type { FollowUpObjective } from "@/src/types/incubation-followups";
@@ -13,12 +13,17 @@ import {
 
 type ObjectivesSectionProps = {
   objectives: FollowUpObjective[];
+  /** Faux des que le suivi quitte `ACTIVE` : un dossier clos ne se recadre plus. */
+  isEditable: boolean;
+  lockMessage: string | null;
   onAddObjective: () => void;
   onEditObjective: (objective: FollowUpObjective) => void;
 };
 
 export default function ObjectivesSection({
   objectives,
+  isEditable,
+  lockMessage,
   onAddObjective,
   onEditObjective,
 }: ObjectivesSectionProps) {
@@ -31,11 +36,18 @@ export default function ObjectivesSection({
             Cadrez les livrables et suivez leur avancement.
           </p>
         </div>
-        <Button onClick={onAddObjective} size="sm" type="button">
+        <Button disabled={!isEditable} onClick={onAddObjective} size="sm" type="button">
           <Plus className="h-4 w-4" />
           Ajouter un objectif
         </Button>
       </div>
+
+      {lockMessage && (
+        <p className="mt-4 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <TriangleAlert className="mt-0.5 h-4 w-4 flex-none" />
+          <span>{lockMessage}</span>
+        </p>
+      )}
 
       {objectives.length === 0 && (
         <p className="mt-4 rounded-xl border border-border/75 bg-white p-4 text-sm text-foreground-muted">
@@ -68,6 +80,7 @@ export default function ObjectivesSection({
                   )}
                 </div>
                 <Button
+                  disabled={!isEditable}
                   onClick={() => onEditObjective(objective)}
                   size="sm"
                   type="button"

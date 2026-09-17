@@ -8,7 +8,8 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { apiFetch } from "@/src/lib/api";
+import { apiFetch, apiFetchWithTotal } from "@/src/lib/api";
+import { withPagination, type PaginationParams } from "@/src/lib/pagination";
 import { useAuth } from "@/src/contexts/AuthContext";
 import type {
   SignupPayload,
@@ -51,12 +52,11 @@ type BackendMessage = {
 
 type UserContextType = {
   users: User[];
+  usersTotal: number | null;
   isUsersLoading: boolean;
   usersError: string | null;
   clearUsersError: () => void;
-  fetchAllUsers: () => Promise<User[]>;
-  findOneUser: (id: string) => Promise<User>;
-  fetchMyProfile: () => Promise<User>;
+  fetchAllUsers: (pagination?: PaginationParams) => Promise<User[]>;
   signup: (payload: SignupPayload) => Promise<SignupResponse>;
   resendVerificationEmail: (email: string) => Promise<BackendMessage>;
   createUser: (payload: CreateUserPayload) => Promise<User>;
@@ -70,31 +70,10 @@ type UserContextType = {
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
-async function apiFetchWithFallback<T>(
-  endpoints: readonly string[],
-  options: RequestInit,
-  token?: string,
- ): Promise<T> {
-  let lastError: unknown = null;
-
-  for (const endpoint of endpoints) {
-    try {
-      return await apiFetch<T>(endpoint, options, token);
-    } catch (error) {
-      lastError = error;
-    }
-  }
-
-  if (lastError instanceof Error) {
-    throw lastError;
-  }
-
-  throw new Error("Request failed");
-}
-
 export function UserProvider({ children }: { children: ReactNode }) {
   const { token } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
+  const [usersTotal, setUsersTotal] = useState<number | null>(null);
   const [isUsersLoading, setIsUsersLoading] = useState(false);
   const [usersError, setUsersError] = useState<string | null>(null);
 
@@ -124,18 +103,21 @@ export function UserProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const fetchAllUsers = useCallback(async () => {
+  const fetchAllUsers = useCallback(async (pagination?: PaginationParams) => {
     setIsUsersLoading(true);
     setUsersError(null);
 
     try {
       const authToken = getRequiredToken();
-      const data = await apiFetchWithFallback<User[]>(
-        ["users/listeDesUtilisateurs", "users"],
+      const { data, total } = await apiFetchWithTotal<User[]>(
+        withPagination("users", pagination),
         {},
         authToken,
       );
       setUsers(data);
+      // Sans page/limit le backend renvoie tout : le total vaut alors la longueur
+      // de la liste, et l'en-tete prend le relais des que l'on pagine.
+      setUsersTotal(total ?? data.length);
       return data;
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to fetch users";
@@ -144,26 +126,6 @@ export function UserProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsUsersLoading(false);
     }
-  }, [getRequiredToken]);
-
-  const findOneUser = useCallback(
-    async (id: string) => {
-      const authToken = getRequiredToken();
-      const user = await apiFetch<User>(`users/${id}`, {}, authToken);
-      upsertUser(user);
-      return user;
-    },
-    [getRequiredToken, upsertUser],
-  );
-
-  const fetchMyProfile = useCallback(async () => {
-    const authToken = getRequiredToken();
-
-    return apiFetchWithFallback<User>(
-      ["users/MyProfile", "users/my-profile", "users/me"],
-      {},
-      authToken,
-    );
   }, [getRequiredToken]);
 
   const signup = useCallback(async (payload: SignupPayload) => {
@@ -183,8 +145,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const createUser = useCallback(
     async (payload: CreateUserPayload) => {
       const authToken = getRequiredToken();
-      const createdUser = await apiFetchWithFallback<User>(
-        ["users/create", "users"],
+      const createdUser = await apiFetch<User>(
+        "users/create",
         {
           method: "POST",
           body: JSON.stringify(payload),
@@ -215,8 +177,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const updateMyProfile = useCallback(async (payload: UpdateMyProfilePayload) => {
     const authToken = getRequiredToken();
 
-    return apiFetchWithFallback<User>(
-      ["users/UpdateMyProfile", "users/MyProfile", "users/my-profile", "users/me"],
+    return apiFetch<User>(
+      "users/me",
       {
         method: "PATCH",
         body: JSON.stringify(payload),
@@ -228,8 +190,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const activateAccount = useCallback(
     async (id: string) => {
       const authToken = getRequiredToken();
-      const result = await apiFetchWithFallback<BackendMessage>(
-        [`users/activate/${id}`, `users/${id}/activate`],
+      const result = await apiFetch<BackendMessage>(
+        `users/${id}/activate`,
         {
           method: "PATCH",
         },
@@ -255,21 +217,15 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const deactivateAccount = useCallback(
     async (id: string) => {
       const authToken = getRequiredToken();
-      let result: BackendMessage;
-
-      try {
-        result = await apiFetch<BackendMessage>(`users/${id}`, {
+      // DELETE users/:id est une desactivation cote backend (soft delete avec
+      // revocation des sessions), pas une suppression de ligne.
+      const result = await apiFetch<BackendMessage>(
+        `users/${id}`,
+        {
           method: "DELETE",
-        }, authToken);
-      } catch {
-        result = await apiFetchWithFallback<BackendMessage>(
-          [`users/${id}/desactivate`, `users/${id}/deactivate`],
-          {
-            method: "PATCH",
-          },
-          authToken,
-        );
-      }
+        },
+        authToken,
+      );
 
       setUsers((currentUsers) =>
         currentUsers.map((user) =>
@@ -290,8 +246,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const deactivateMyAccount = useCallback(async () => {
     const authToken = getRequiredToken();
 
-    return apiFetchWithFallback<BackendMessage>(
-      ["users/DesactivateMyAccount", "users/desactivate-my-account"],
+    return apiFetch<BackendMessage>(
+      "users/me",
       {
         method: "DELETE",
       },
@@ -302,14 +258,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const changeMyPassword = useCallback(async (payload: ChangePasswordPayload) => {
     const authToken = getRequiredToken();
 
-    return apiFetchWithFallback<BackendMessage>(
-      [
-        "users/Change%20My%20Password",
-        "users/Change My Password",
-        "users/ChangeMyPass",
-        "users/change-my-password",
-        "users/change-password",
-      ],
+    return apiFetch<BackendMessage>(
+      "users/change-password",
       {
         method: "PATCH",
         body: JSON.stringify(payload),
@@ -321,12 +271,11 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const value = useMemo(
     () => ({
       users,
+      usersTotal,
       isUsersLoading,
       usersError,
       clearUsersError,
       fetchAllUsers,
-      findOneUser,
-      fetchMyProfile,
       signup,
       resendVerificationEmail,
       createUser,
@@ -339,12 +288,11 @@ export function UserProvider({ children }: { children: ReactNode }) {
     }),
     [
       users,
+      usersTotal,
       isUsersLoading,
       usersError,
       clearUsersError,
       fetchAllUsers,
-      findOneUser,
-      fetchMyProfile,
       signup,
       resendVerificationEmail,
       createUser,

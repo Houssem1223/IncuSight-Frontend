@@ -34,9 +34,10 @@ param en dehors de ces valeurs renvoie 400.
 | `to` | `string?` (ISO 8601) | **obligatoire si `period=custom`** |
 | `status` | `'PENDING' \| 'ACCEPTED' \| 'REJECTED'` | **valeurs réelles de `ApplicationStatus` — pas de `WAITLISTED`/liste d'attente, ça n'existe pas dans le schéma, décision déjà validée côté backend** |
 
-Aucun helper de query-string n'existe encore côté front (`apiFetch()` prend un chemin
-déjà construit). Tu devras écrire un petit `buildDashboardQuery(filters)` (via
-`URLSearchParams`, en omettant les clés `undefined`).
+Le helper existe désormais côté front : `buildDashboardQuery(filters)` dans
+[`src/lib/dashboard-api.ts`](../src/lib/dashboard-api.ts) (via `URLSearchParams`, les
+clés `undefined` sont omises). C'est lui qui construit le chemin passé à `apiFetch()`,
+et les `queryKey` TanStack Query sont bâties sur le même objet de filtres.
 
 Le backend calcule systématiquement une période courante ET une période précédente de
 même durée en retour (voir `ResolvedPeriodDto` ci-dessous) — c'est lui qui fait ce calcul,
@@ -77,10 +78,12 @@ précédente possible côté API, ne l'affiche pas comme un delta. Un champ **fl
 
 ## 5. Les 10 endpoints
 
-Tous `GET`, tous sous `/dashboard`. **Seuls les 8 premiers renvoient des données
-réelles.** Les 2 derniers existent déjà côté route/guard mais renvoient
-systématiquement **501 Not Implemented** — ne les câble pas en Phase 2, c'est prévu en
-Phase 4 une fois le backend les implémentés.
+Tous `GET`, tous sous `/dashboard`. **Les 10 renvoient des données réelles** — les
+deux vues personnelles (`evaluator/overview`, `startup/overview`) ne répondent plus
+501 et sont câblées côté frontend.
+
+Les 8 endpoints `admin/*` sont réservés au rôle ADMIN ; les 2 vues personnelles
+sont scopées à l'utilisateur connecté, jamais à un identifiant fourni par le client.
 
 ### `GET /dashboard/admin/overview` — rôle ADMIN
 ```ts
@@ -226,20 +229,73 @@ interface Insight {
 interface AdminInsightsResponse { insights: Insight[]; }
 ```
 
-⚠️ **`actionUrl` ne correspond à AUCUNE route réelle de ce repo aujourd'hui.** Valeurs
-possibles actuellement renvoyées par le backend, et ce qu'elles supposeraient côté front :
 
-| `actionUrl` renvoyé | Route réelle la plus proche dans ce repo | Écart |
-|---|---|---|
-| `/dashboard/admin/incubation?objectiveStatus=BLOCKED` | `/dashboard/admin/incubation-followups` | chemin différent, `objectiveStatus` non lu par la page |
-| `/dashboard/admin/incubation?stale=true` | `/dashboard/admin/incubation-followups` | idem |
-| `/dashboard/admin/pipeline` | `/dashboard/admin/applications` (le plus proche) | page `/pipeline` inexistante |
-| `/dashboard/admin/decisions?programId=...` | pas de page décisions dédiée | page inexistante |
-| `/dashboard/admin/overview` | `/dashboard/admin` (page d'accueil du dashboard) | segment `/overview` inexistant |
+✅ **Les `actionUrl` pointent désormais vers de vraies routes**, des deux côtés : le
+backend les a alignées sur les chemins réels (`insights.rules.ts`, avec une liste
+`FRONTEND_ROUTES` assertée en test), et le frontend les résout via
+`resolveInsightHref` (`admin/dashboard/insightActionLinks.ts`) plutôt que de suivre
+l'URL brute. `/dashboard/admin/applications` lit bien `?status=` et `?search=`.
 
-Aucune page admin existante (`applications`, `incubation-followups`, `program`, …) ne lit
-de query params de filtre aujourd'hui (vérifié : zéro `useSearchParams` sur ces pages).
-**C'est un vrai gap à traiter en Phase 2, pas un détail** — voir le plan ci-dessous.
+### `GET /dashboard/evaluator/overview` — rôle EVALUATOR
 
-### `GET /dashboard/evaluator/overview` — rôle EVALUATOR — **501, ne pas câbler**
-### `GET /dashboard/startup/overview` — rôle STARTUP — **501, ne pas câbler**
+Vue personnelle de l'évaluateur connecté, scopée à `req.user.sub`. Cachée avec une
+clé incluant l'id de l'appelant (routes « user-scoped » de l'intercepteur).
+
+```ts
+interface EvaluatorOverviewResponse {
+  period: ResolvedPeriod;
+  // Stocks : état courant, non comparés à la période précédente.
+  charge: { assignees: number; aDemarrer: number; enCours: number; enRetard: number };
+  production: {
+    soumises: PeriodComparison; // flux, borné par la période
+    scoreMoyenDonne: number;    // échelle 1-5
+    recommandations: { FAVORABLE: number; RESERVED: number; UNFAVORABLE: number };
+  };
+  prochainesEcheances: {
+    applicationId: string;
+    startupName: string;
+    programTitle: string;
+    deadlineAt: string | null;
+    enRetard: boolean;
+  }[];
+}
+```
+
+### `GET /dashboard/startup/overview` — rôle STARTUP
+
+Vue personnelle de la startup connectée, scopée au propriétaire.
+
+```ts
+interface StartupOverviewResponse {
+  period: ResolvedPeriod;
+  profils: { total: number; publies: number; brouillons: number };
+  candidatures: {
+    total: number;
+    enAttente: number;
+    acceptees: number;
+    rejetees: number;
+    deposeesSurLaPeriode: PeriodComparison;
+  };
+  incubation: {
+    followUpId: string;
+    startupName: string;
+    programTitle: string;
+    status: string;
+    phase: string;
+    progress: number;
+    startDate: string;
+    objectifs: { total: number; termines: number; enRetard: number };
+    dernierPointAt: string | null;
+    // Même seuil de 14 jours que le KPI admin « startups sans update récent ».
+    pointEnRetard: boolean;
+  }[];
+}
+```
+
+## 6. Hors module dashboard : les exports
+
+Le module `reports` sert les documents (ADMIN uniquement) :
+`GET /reports/applications/:id/evaluations.pdf`,
+`GET /reports/applications/:id/decision.pdf`,
+`GET /reports/applications.csv` (accepte `status`, `programId`),
+`GET /reports/startups.csv`, `GET /reports/incubation.csv`.

@@ -30,7 +30,10 @@ export default function AdminDashboardOverview() {
 
         <TimeseriesCard filters={dashboardFilters.filters} />
 
-        <div className="grid grid-cols-3 gap-6">
+        {/* Ces grilles etaient en `grid-cols-3`/`grid-cols-2` sans prefixe de
+            breakpoint : la mise en page ne se reorganisait jamais et debordait
+            sous la largeur bureau. */}
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
           <PipelineCard filters={dashboardFilters.filters} />
 
           <TopStartupsCard filters={dashboardFilters.filters} />
@@ -38,7 +41,7 @@ export default function AdminDashboardOverview() {
           <RecentActivityCard filters={dashboardFilters.filters} />
         </div>
 
-        <div className="grid grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <DecisionsDonut filters={dashboardFilters.filters} />
 
           <IncubationSummaryCards filters={dashboardFilters.filters} />

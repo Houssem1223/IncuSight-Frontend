@@ -10,6 +10,15 @@ import type {
 export const followUpStatuses: FollowUpStatus[] = ["ACTIVE", "COMPLETED", "SUSPENDED", "DROPPED"];
 export const objectiveStatuses: FollowUpObjectiveStatus[] = ["TODO", "IN_PROGRESS", "DONE", "BLOCKED"];
 export const objectivePriorities: FollowUpObjectivePriority[] = ["LOW", "MEDIUM", "HIGH"];
+// Ordre metier de progression d'une incubation, du demarrage a la cloture.
+export const phases: FollowUpPhase[] = [
+  "ONBOARDING",
+  "DIAGNOSTIC",
+  "BUILD",
+  "MARKET_VALIDATION",
+  "PITCH_PREPARATION",
+  "CLOSING",
+];
 
 export const followUpStatusLabels: Record<FollowUpStatus, string> = {
   ACTIVE: "Actif",

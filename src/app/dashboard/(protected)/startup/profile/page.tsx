@@ -2,12 +2,15 @@
 
 import { useEffect } from "react";
 import RoleGuard from "@/src/components/auth/Roleguard";
+import AccountSettings from "@/src/components/dashboard/account/AccountSettings";
 import { useAuth } from "@/src/contexts/AuthContext";
 import { useStartups } from "@/src/contexts/StartupContext";
+import { useBusinessRules } from "@/src/hooks/useBusinessRules";
 
 export default function StartupProfilePage() {
-  const { user, isAuthReady, isAuthenticated } = useAuth();
+  const { isAuthReady, isAuthenticated } = useAuth();
   const { myStartups, fetchMyStartups } = useStartups();
+  const { MAX_STARTUPS_PER_USER } = useBusinessRules();
   const primaryStartup = myStartups[0] ?? null;
   const previewNames = myStartups.slice(0, 3).map((startup) => startup.startupName).join(", ");
 
@@ -21,37 +24,35 @@ export default function StartupProfilePage() {
 
   return (
     <RoleGuard allowedRole="STARTUP">
-      <section className="motion-rise dashboard-surface p-6">
-        <p className="font-mono text-xs uppercase tracking-[0.16em] text-brand-strong">
-          Startup Profile
-        </p>
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
-          Account Summary
-        </h1>
+      <div className="space-y-4">
+        <AccountSettings />
 
-        <div className="mt-5 grid gap-4 md:grid-cols-2">
-          <article className="dashboard-card p-4">
-            <h2 className="text-sm font-semibold text-foreground">User</h2>
-            <p className="mt-2 text-sm text-foreground-muted">
-              {user?.firstName || "-"} {user?.lastName || ""}
-            </p>
-            <p className="text-sm text-foreground-muted">{user?.email || "-"}</p>
-          </article>
+        <section className="motion-rise dashboard-surface p-6">
+          <h2 className="text-base font-semibold text-foreground">Mes profils startup</h2>
+          <p className="mt-1 text-sm text-foreground-muted">
+            Les profils rattaches a ce compte. Ils se gerent depuis « Mes Startups ».
+          </p>
 
-          <article className="dashboard-card p-4">
-            <h2 className="text-sm font-semibold text-foreground">Startup Portfolio</h2>
-            <p className="mt-2 text-sm text-foreground-muted">
-              {primaryStartup?.startupName || "No startup submitted"}
-            </p>
-            <p className="mt-2 text-sm text-foreground-muted">
-              Submitted startups: {myStartups.length}/5
-            </p>
-            <p className="text-sm text-foreground-muted">
-              {previewNames || "No startup names available yet."}
-            </p>
-          </article>
-        </div>
-      </section>
+          <div className="mt-4 grid gap-4 md:grid-cols-2">
+            <article className="dashboard-card p-4">
+              <h3 className="text-sm font-semibold text-foreground">Profil principal</h3>
+              <p className="mt-2 text-sm text-foreground-muted">
+                {primaryStartup?.startupName || "Aucun profil startup enregistre"}
+              </p>
+            </article>
+
+            <article className="dashboard-card p-4">
+              <h3 className="text-sm font-semibold text-foreground">Portefeuille</h3>
+              <p className="mt-2 text-sm text-foreground-muted">
+                Profils enregistres : {myStartups.length}/{MAX_STARTUPS_PER_USER}
+              </p>
+              <p className="text-sm text-foreground-muted">
+                {previewNames || "Aucun nom de startup disponible pour le moment."}
+              </p>
+            </article>
+          </div>
+        </section>
+      </div>
     </RoleGuard>
   );
 }

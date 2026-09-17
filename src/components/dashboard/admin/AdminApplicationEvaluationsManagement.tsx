@@ -2,10 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import RoleGuard from "@/src/components/auth/Roleguard";
+import ConfirmDialog from "@/src/components/dashboard/ConfirmDialog";
+import { Button } from "@/src/components/ui/button";
 import { useApplications } from "@/src/contexts/ApplicationContext";
 import { useAuth } from "@/src/contexts/AuthContext";
 import { useEvaluations } from "@/src/contexts/EvaluationContext";
 import type { Application } from "@/src/types/application";
+import { downloadEvaluationReport } from "@/src/lib/reports";
+import type { Evaluation } from "@/src/types/evaluation";
 
 function formatDate(value?: string | null): string {
   if (!value) {
@@ -46,8 +50,41 @@ function getApplicationLabel(application: Application): string {
   return `${startup} - ${program}`;
 }
 
+function getEvaluatorLabel(evaluation: Evaluation): string {
+  return evaluation.evaluator?.email || evaluation.evaluatorId || "Evaluateur inconnu";
+}
+
+// Une evaluation non soumise n'a pas encore de contenu redige exploitable : on ne
+// montre que les evaluations SUBMITTED pour ne pas laisser croire a un avis rendu.
+function hasWrittenAnalysis(evaluation: Evaluation): boolean {
+  if (normalizeStatus(evaluation.status) !== "SUBMITTED") {
+    return false;
+  }
+
+  return Boolean(
+    evaluation.strengths?.trim() || evaluation.weaknesses?.trim() || evaluation.comment?.trim(),
+  );
+}
+
+function AnalysisField({ label, value }: { label: string; value?: string | null }) {
+  const text = value?.trim();
+
+  return (
+    <div>
+      <p className="text-xs font-medium uppercase tracking-[0.14em] text-foreground-muted">
+        {label}
+      </p>
+      {text ? (
+        <p className="mt-1.5 whitespace-pre-wrap text-sm leading-6 text-foreground">{text}</p>
+      ) : (
+        <p className="mt-1.5 text-sm italic text-foreground-muted">Non renseigne.</p>
+      )}
+    </div>
+  );
+}
+
 export default function AdminApplicationEvaluationsManagement() {
-  const { isAuthReady, isAuthenticated } = useAuth();
+  const { isAuthReady, isAuthenticated, token } = useAuth();
   const {
     applications,
     clearApplicationsError,
@@ -61,9 +98,15 @@ export default function AdminApplicationEvaluationsManagement() {
     clearEvaluationsError,
     fetchEvaluationsByApplication,
     fetchApplicationSummary,
+    reopenEvaluation,
   } = useEvaluations();
 
   const [selectedApplicationId, setSelectedApplicationId] = useState<string>("");
+  const [pendingReopenEvaluation, setPendingReopenEvaluation] = useState<Evaluation | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportError, setExportError] = useState("");
+  const [isReopening, setIsReopening] = useState(false);
+  const [reopenError, setReopenError] = useState("");
 
   const refreshApplications = useCallback(async () => {
     clearApplicationsError();
@@ -132,11 +175,65 @@ export default function AdminApplicationEvaluationsManagement() {
     [sortedApplications, activeApplicationId],
   );
 
+  const handleExport = async (applicationId: string) => {
+    if (!token) {
+      return;
+    }
+
+    setExportError("");
+    setIsExporting(true);
+
+    try {
+      await downloadEvaluationReport(applicationId, token);
+    } catch (error) {
+      setExportError(
+        error instanceof Error ? error.message : "Impossible de generer le PDF.",
+      );
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const cancelReopen = () => {
+    if (isReopening) {
+      return;
+    }
+
+    setPendingReopenEvaluation(null);
+    setReopenError("");
+  };
+
+  const confirmReopen = async () => {
+    if (!pendingReopenEvaluation || !activeApplicationId) {
+      return;
+    }
+
+    setReopenError("");
+    setIsReopening(true);
+
+    try {
+      await reopenEvaluation(pendingReopenEvaluation.id);
+      await Promise.all([
+        fetchEvaluationsByApplication(activeApplicationId),
+        fetchApplicationSummary(activeApplicationId),
+      ]);
+      setPendingReopenEvaluation(null);
+    } catch (error) {
+      setReopenError(error instanceof Error ? error.message : "Impossible de rouvrir l'évaluation.");
+    } finally {
+      setIsReopening(false);
+    }
+  };
+
   const applicationEvaluations =
     evaluationsByApplicationId[activeApplicationId] ||
     summariesByApplicationId[activeApplicationId]?.evaluations ||
     [];
   const summary = summariesByApplicationId[activeApplicationId];
+  const writtenAnalyses = applicationEvaluations.filter(hasWrittenAnalysis);
+  const submittedCount = applicationEvaluations.filter(
+    (evaluation) => normalizeStatus(evaluation.status) === "SUBMITTED",
+  ).length;
 
   return (
     <RoleGuard allowedRole="ADMIN">
@@ -244,6 +341,7 @@ export default function AdminApplicationEvaluationsManagement() {
                     <th className="px-4 py-3 font-medium">Score global</th>
                     <th className="px-4 py-3 font-medium">Recommendation</th>
                     <th className="px-4 py-3 font-medium">Soumis le</th>
+                    <th className="px-4 py-3 font-medium">Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -271,6 +369,18 @@ export default function AdminApplicationEvaluationsManagement() {
                         <td className="px-4 py-3 text-foreground-muted">
                           {formatDate(evaluation.submittedAt)}
                         </td>
+                        <td className="px-4 py-3">
+                          {status === "SUBMITTED" && (
+                            <Button
+                              onClick={() => setPendingReopenEvaluation(evaluation)}
+                              size="sm"
+                              type="button"
+                              variant="outline"
+                            >
+                              Rouvrir
+                            </Button>
+                          )}
+                        </td>
                       </tr>
                     );
                   })}
@@ -279,7 +389,83 @@ export default function AdminApplicationEvaluationsManagement() {
             </div>
           </div>
         )}
+
+        {!isEvaluationsLoading && activeApplicationId && (
+          <div className="mt-6 flex flex-wrap items-center gap-3">
+            <Button
+              disabled={isExporting}
+              onClick={() => void handleExport(activeApplicationId)}
+              size="sm"
+              type="button"
+              variant="outline"
+            >
+              {isExporting ? "Generation..." : "Exporter la grille (PDF)"}
+            </Button>
+            {exportError && <span className="text-sm text-red-700">{exportError}</span>}
+          </div>
+        )}
+
+        {!isEvaluationsLoading && activeApplicationId && submittedCount > 0 && (
+          <div className="mt-8 border-t border-border/60 pt-6">
+            <h3 className="text-base font-semibold text-foreground">Analyses des evaluateurs</h3>
+            <p className="mt-1 text-sm text-foreground-muted">
+              Le detail redige par chaque evaluateur, sur lequel s&apos;appuie la decision.
+            </p>
+
+            {writtenAnalyses.length === 0 ? (
+              <p className="mt-4 rounded-xl border border-border/75 bg-white px-3 py-3 text-sm text-foreground-muted">
+                Les evaluations soumises ne contiennent aucun commentaire redige.
+              </p>
+            ) : (
+              <div className="mt-4 grid gap-4">
+                {writtenAnalyses.map((evaluation) => (
+                  <article
+                    className="rounded-xl border border-border/75 bg-white/85 p-4 shadow-sm"
+                    key={evaluation.id}
+                  >
+                    <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                      <p className="text-sm font-semibold text-foreground">
+                        {getEvaluatorLabel(evaluation)}
+                      </p>
+                      <p className="text-xs text-foreground-muted">
+                        Score global {evaluation.overallScore ?? "-"} / 5
+                        {evaluation.recommendation ? ` - ${evaluation.recommendation}` : ""}
+                        {` - soumis le ${formatDate(evaluation.submittedAt)}`}
+                      </p>
+                    </div>
+
+                    <div className="mt-4 grid gap-4 md:grid-cols-2">
+                      <AnalysisField label="Points forts" value={evaluation.strengths} />
+                      <AnalysisField label="Points faibles" value={evaluation.weaknesses} />
+                    </div>
+
+                    <div className="mt-4">
+                      <AnalysisField label="Commentaire" value={evaluation.comment} />
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {reopenError && (
+          <p className="mt-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            {reopenError}
+          </p>
+        )}
       </section>
+
+      <ConfirmDialog
+        confirmLabel="Rouvrir"
+        description={`L'evaluation de ${pendingReopenEvaluation?.evaluator?.email || pendingReopenEvaluation?.evaluatorId || "cet evaluateur"} sera repassee en cours et devra etre resoumise. Cette action annule sa soumission actuelle.`}
+        isConfirming={isReopening}
+        isOpen={pendingReopenEvaluation !== null}
+        onCancel={cancelReopen}
+        onConfirm={() => void confirmReopen()}
+        title="Rouvrir cette evaluation ?"
+        tone="danger"
+      />
     </RoleGuard>
   );
 }

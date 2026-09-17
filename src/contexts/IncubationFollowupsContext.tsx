@@ -14,12 +14,19 @@ import { useAuth } from "@/src/contexts/AuthContext";
 import type {
   CreateFollowUpObjectivePayload,
   CreateFollowUpUpdatePayload,
+  FollowUpAttachment,
   FollowUpObjective,
   FollowUpUpdate,
   IncubationFollowUp,
   UpdateFollowUpObjectivePayload,
   UpdateFollowUpObjectiveProgressPayload,
+  UpdateFollowUpPayload,
 } from "@/src/types/incubation-followups";
+
+type BackendMessage = {
+  message?: string;
+  [key: string]: unknown;
+};
 
 type IncubationFollowupsContextType = {
   followUps: IncubationFollowUp[];
@@ -29,8 +36,8 @@ type IncubationFollowupsContextType = {
   clearFollowUpsError: () => void;
   fetchAllFollowUps: () => Promise<IncubationFollowUp[]>;
   fetchMyFollowUps: () => Promise<IncubationFollowUp[]>;
-  findOneFollowUp: (id: string) => Promise<IncubationFollowUp>;
   createFromApplication: (applicationId: string) => Promise<IncubationFollowUp>;
+  updateFollowUp: (followUpId: string, payload: UpdateFollowUpPayload) => Promise<IncubationFollowUp>;
   addObjective: (followUpId: string, payload: CreateFollowUpObjectivePayload) => Promise<FollowUpObjective>;
   updateObjectiveByAdmin: (
     objectiveId: string,
@@ -41,6 +48,8 @@ type IncubationFollowupsContextType = {
     payload: UpdateFollowUpObjectiveProgressPayload,
   ) => Promise<FollowUpObjective>;
   addUpdate: (followUpId: string, payload: CreateFollowUpUpdatePayload) => Promise<FollowUpUpdate>;
+  addUpdateAttachment: (updateId: string, file: File) => Promise<FollowUpAttachment>;
+  removeUpdateAttachment: (attachmentId: string) => Promise<BackendMessage>;
 };
 
 const IncubationFollowupsContext = createContext<IncubationFollowupsContextType | undefined>(undefined);
@@ -190,16 +199,6 @@ export function IncubationFollowupsProvider({ children }: { children: ReactNode 
     }
   }, [getRequiredToken]);
 
-  const findOneFollowUp = useCallback(
-    async (id: string) => {
-      const authToken = getRequiredToken();
-      const followUp = await apiFetch<IncubationFollowUp>(`incubation-followups/${id}`, {}, authToken);
-      upsertFollowUp(followUp);
-      return followUp;
-    },
-    [getRequiredToken, upsertFollowUp],
-  );
-
   const createFromApplication = useCallback(
     async (applicationId: string) => {
       const authToken = getRequiredToken();
@@ -213,6 +212,24 @@ export function IncubationFollowupsProvider({ children }: { children: ReactNode 
 
       upsertFollowUp(followUp);
       return followUp;
+    },
+    [getRequiredToken, upsertFollowUp],
+  );
+
+  const updateFollowUp = useCallback(
+    async (followUpId: string, payload: UpdateFollowUpPayload) => {
+      const authToken = getRequiredToken();
+      const updated = await apiFetch<IncubationFollowUp>(
+        `incubation-followups/${followUpId}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify(payload),
+        },
+        authToken,
+      );
+
+      upsertFollowUp(updated);
+      return updated;
     },
     [getRequiredToken, upsertFollowUp],
   );
@@ -323,6 +340,41 @@ export function IncubationFollowupsProvider({ children }: { children: ReactNode 
     [getRequiredToken],
   );
 
+  // Le fichier part en multipart : on laisse fetch poser lui-meme le Content-Type
+  // avec sa boundary, comme le fait deja uploadPitchDeck cote StartupContext.
+  const addUpdateAttachment = useCallback(
+    async (updateId: string, file: File) => {
+      const authToken = getRequiredToken();
+      const formData = new FormData();
+      formData.append("file", file);
+
+      return apiFetch<FollowUpAttachment>(
+        `incubation-followups/updates/${updateId}/attachments`,
+        {
+          method: "POST",
+          body: formData,
+        },
+        authToken,
+      );
+    },
+    [getRequiredToken],
+  );
+
+  const removeUpdateAttachment = useCallback(
+    async (attachmentId: string) => {
+      const authToken = getRequiredToken();
+
+      return apiFetch<BackendMessage>(
+        `incubation-followups/attachments/${attachmentId}`,
+        {
+          method: "DELETE",
+        },
+        authToken,
+      );
+    },
+    [getRequiredToken],
+  );
+
   const value = useMemo(
     () => ({
       followUps,
@@ -332,12 +384,14 @@ export function IncubationFollowupsProvider({ children }: { children: ReactNode 
       clearFollowUpsError,
       fetchAllFollowUps,
       fetchMyFollowUps,
-      findOneFollowUp,
       createFromApplication,
+      updateFollowUp,
       addObjective,
       updateObjectiveByAdmin,
       updateObjectiveByStartup,
       addUpdate,
+      addUpdateAttachment,
+      removeUpdateAttachment,
     }),
     [
       followUps,
@@ -347,12 +401,14 @@ export function IncubationFollowupsProvider({ children }: { children: ReactNode 
       clearFollowUpsError,
       fetchAllFollowUps,
       fetchMyFollowUps,
-      findOneFollowUp,
       createFromApplication,
+      updateFollowUp,
       addObjective,
       updateObjectiveByAdmin,
       updateObjectiveByStartup,
       addUpdate,
+      addUpdateAttachment,
+      removeUpdateAttachment,
     ],
   );
 

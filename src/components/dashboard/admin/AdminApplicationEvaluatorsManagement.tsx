@@ -7,6 +7,8 @@ import { useAuth } from "@/src/contexts/AuthContext";
 import { usePrograms } from "@/src/contexts/ProgramContext";
 import type { Application } from "@/src/types/application";
 import type { User } from "@/src/types/user";
+import { toDateInputValue } from "./followups/followupHelpers";
+import { useBusinessRules } from "@/src/hooks/useBusinessRules";
 
 function formatDate(value?: string): string {
   if (!value) {
@@ -73,6 +75,8 @@ export default function AdminApplicationEvaluatorsManagement() {
     fetchAvailableEvaluatorsForApplication,
     fetchApplicationsByProgramForAdmin,
     assignApplicationEvaluator,
+    updateEvaluatorDeadline,
+    assignmentsByApplicationId,
     removeApplicationEvaluator,
   } = useApplicationEvaluators();
 
@@ -82,6 +86,12 @@ export default function AdminApplicationEvaluatorsManagement() {
   const [selectedEvaluatorByApplicationId, setSelectedEvaluatorByApplicationId] = useState<
     Record<string, string>
   >({});
+  const [deadlineByApplicationId, setDeadlineByApplicationId] = useState<
+    Record<string, string>
+  >({});
+  // Cle `applicationId:evaluatorId` : une seule echeance est modifiee a la fois.
+  const [updatingDeadlineFor, setUpdatingDeadlineFor] = useState<string | null>(null);
+  const { MAX_EVALUATORS_PER_APPLICATION } = useBusinessRules();
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -205,6 +215,30 @@ export default function AdminApplicationEvaluatorsManagement() {
     [adminApplicationsByProgramId],
   );
 
+  const handleDeadlineChange = async (
+    applicationId: string,
+    evaluatorId: string,
+    value: string,
+  ) => {
+    if (!value) {
+      return;
+    }
+
+    resetActionFeedback();
+    setUpdatingDeadlineFor(`${applicationId}:${evaluatorId}`);
+
+    try {
+      await updateEvaluatorDeadline(applicationId, evaluatorId, value);
+      setActionMessage("Echeance mise a jour.");
+    } catch (error) {
+      setActionError(
+        error instanceof Error ? error.message : "Impossible de modifier l'echeance.",
+      );
+    } finally {
+      setUpdatingDeadlineFor(null);
+    }
+  };
+
   const handleAssignEvaluator = async (applicationId: string) => {
     resetActionFeedback();
     const evaluatorId = selectedEvaluatorByApplicationId[applicationId];
@@ -217,12 +251,15 @@ export default function AdminApplicationEvaluatorsManagement() {
     setAssigningApplicationId(applicationId);
 
     try {
-      await assignApplicationEvaluator(applicationId, evaluatorId);
+      // Echeance vide => le backend applique son defaut (J+7).
+      const deadline = deadlineByApplicationId[applicationId]?.trim();
+      await assignApplicationEvaluator(applicationId, evaluatorId, deadline || undefined);
       await fetchAvailableEvaluatorsForApplication(applicationId);
       setSelectedEvaluatorByApplicationId((current) => ({
         ...current,
         [applicationId]: "",
       }));
+      setDeadlineByApplicationId((current) => ({ ...current, [applicationId]: "" }));
       setActionMessage("Evaluateur affecte a la candidature avec succes.");
     } catch (error) {
       setActionError(error instanceof Error ? error.message : "Echec de l'affectation.");
@@ -315,9 +352,11 @@ export default function AdminApplicationEvaluatorsManagement() {
                 <div className="mt-3 grid gap-3">
                   {group.applications.map((application) => {
                     const assignedEvaluators = evaluatorsByApplicationId[application.id] || [];
+                    const assignments = assignmentsByApplicationId[application.id] || [];
                     const availableEvaluators =
                       availableEvaluatorsByApplicationId[application.id] || [];
-                    const isAtMax = assignedEvaluators.length >= 2;
+                    const isAtMax =
+                      assignedEvaluators.length >= MAX_EVALUATORS_PER_APPLICATION;
 
                     return (
                       <div className="dashboard-soft-block p-3" key={application.id}>
@@ -340,7 +379,7 @@ export default function AdminApplicationEvaluatorsManagement() {
 
                         <div className="mt-3 rounded-lg border border-border/70 bg-slate-50 p-3">
                           <p className="text-xs font-semibold uppercase tracking-[0.12em] text-foreground-muted">
-                            Evaluateurs affectes ({assignedEvaluators.length}/2)
+                            Evaluateurs affectes ({assignedEvaluators.length}/{MAX_EVALUATORS_PER_APPLICATION})
                           </p>
 
                           {assignedEvaluators.length === 0 && (
@@ -349,22 +388,42 @@ export default function AdminApplicationEvaluatorsManagement() {
 
                           {assignedEvaluators.length > 0 && (
                             <div className="mt-2 flex flex-wrap gap-2">
-                              {assignedEvaluators.map((evaluator) => (
-                                <span
-                                  className="inline-flex items-center gap-2 rounded-full border border-border bg-white px-3 py-1 text-xs text-foreground"
-                                  key={evaluator.id}
-                                >
-                                  {evaluator.email}
-                                  <button
-                                    className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-red-200 text-[10px] text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
-                                    disabled={removingApplicationId === application.id}
-                                    onClick={() => handleRemoveEvaluator(application.id, evaluator.id)}
-                                    type="button"
+                              {assignedEvaluators.map((evaluator) => {
+                                const assignment = assignments.find(
+                                  (item) => item.evaluatorId === evaluator.id,
+                                );
+
+                                return (
+                                  <span
+                                    className="inline-flex items-center gap-2 rounded-full border border-border bg-white px-3 py-1 text-xs text-foreground"
+                                    key={evaluator.id}
                                   >
-                                    x
-                                  </button>
-                                </span>
-                              ))}
+                                    {evaluator.email}
+                                    <input
+                                      aria-label={`Echeance pour ${evaluator.email}`}
+                                      className="rounded border border-border px-1.5 py-0.5 text-[11px] text-foreground outline-none focus:border-brand"
+                                      disabled={updatingDeadlineFor === `${application.id}:${evaluator.id}`}
+                                      onChange={(event) =>
+                                        void handleDeadlineChange(
+                                          application.id,
+                                          evaluator.id,
+                                          event.target.value,
+                                        )
+                                      }
+                                      type="date"
+                                      value={toDateInputValue(assignment?.deadlineAt)}
+                                    />
+                                    <button
+                                      className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-red-200 text-[10px] text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                                      disabled={removingApplicationId === application.id}
+                                      onClick={() => handleRemoveEvaluator(application.id, evaluator.id)}
+                                      type="button"
+                                    >
+                                      x
+                                    </button>
+                                  </span>
+                                );
+                              })}
                             </div>
                           )}
 
@@ -391,6 +450,22 @@ export default function AdminApplicationEvaluatorsManagement() {
                                     </option>
                                   ))}
                                 </select>
+
+                                <label className="inline-flex items-center gap-1.5 text-[11px] text-foreground-muted">
+                                  Echeance
+                                  <input
+                                    className="rounded-lg border border-border bg-white px-2 py-1 text-xs text-foreground outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20"
+                                    onChange={(event) =>
+                                      setDeadlineByApplicationId((current) => ({
+                                        ...current,
+                                        [application.id]: event.target.value,
+                                      }))
+                                    }
+                                    title="Laisser vide pour l'echeance par defaut (7 jours)"
+                                    type="date"
+                                    value={deadlineByApplicationId[application.id] || ""}
+                                  />
+                                </label>
 
                                 <button
                                   className="dashboard-btn rounded-lg border border-border bg-white px-3 py-1.5 text-xs font-medium text-foreground hover:border-brand/35 hover:text-brand-strong disabled:cursor-not-allowed disabled:opacity-60"

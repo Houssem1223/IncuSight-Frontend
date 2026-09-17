@@ -3,12 +3,14 @@
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { Activity, RefreshCw } from "lucide-react";
 import RoleGuard from "@/src/components/auth/Roleguard";
+import ConfirmDialog from "@/src/components/dashboard/ConfirmDialog";
 import { Button } from "@/src/components/ui/button";
 import { useApplications } from "@/src/contexts/ApplicationContext";
 import { useAuth } from "@/src/contexts/AuthContext";
 import { useIncubationFollowups } from "@/src/contexts/IncubationFollowupsContext";
 import type {
   FollowUpObjective,
+  FollowUpPhase,
   FollowUpStatus,
 } from "@/src/types/incubation-followups";
 import FollowUpOverview from "./followups/FollowUpOverview";
@@ -16,6 +18,8 @@ import FollowUpsList from "./followups/FollowUpsList";
 import {
   clampProgress,
   emptyObjectiveForm,
+  followUpStatusLabels,
+  formatDate,
   getApplicationLabel,
   toDateInputValue,
   type ObjectiveFormState,
@@ -24,10 +28,15 @@ import ObjectiveModal from "./followups/ObjectiveModal";
 import ObjectivesSection from "./followups/ObjectivesSection";
 import StartFollowUpPanel from "./followups/StartFollowUpPanel";
 import SummaryCards from "./followups/SummaryCards";
+import {
+  getFollowUpLockMessage,
+  isFollowUpOpen,
+} from "@/src/lib/incubation-followup-state";
+import { downloadIncubationCsv } from "@/src/lib/reports";
 import UpdatesTimeline from "./followups/UpdatesTimeline";
 
 export default function AdminIncubationFollowupsManagement() {
-  const { isAuthReady, isAuthenticated } = useAuth();
+  const { isAuthReady, isAuthenticated, token } = useAuth();
   const {
     applications,
     isApplicationsLoading,
@@ -42,6 +51,7 @@ export default function AdminIncubationFollowupsManagement() {
     clearFollowUpsError,
     fetchAllFollowUps,
     createFromApplication,
+    updateFollowUp,
     addObjective,
     updateObjectiveByAdmin,
   } = useIncubationFollowups();
@@ -56,6 +66,11 @@ export default function AdminIncubationFollowupsManagement() {
   const [objectiveForm, setObjectiveForm] = useState<ObjectiveFormState>(emptyObjectiveForm);
   const [isSavingObjective, setIsSavingObjective] = useState(false);
   const [actionError, setActionError] = useState("");
+  const [isExportingCsv, setIsExportingCsv] = useState(false);
+  const [notesDraft, setNotesDraft] = useState("");
+  const [isSavingNotes, setIsSavingNotes] = useState(false);
+  const [pendingStatusChange, setPendingStatusChange] = useState<FollowUpStatus | null>(null);
+  const [isUpdatingFollowUp, setIsUpdatingFollowUp] = useState(false);
 
   const refresh = useCallback(async () => {
     clearApplicationsError();
@@ -125,6 +140,11 @@ export default function AdminIncubationFollowupsManagement() {
     [activeFollowUpId, followUps],
   );
 
+  // Statut et notes internes restent modifiables sur un suivi clos — sinon on ne
+  // pourrait plus le rouvrir. Ce sont les objectifs qui se figent.
+  const isActiveFollowUpEditable = isFollowUpOpen(activeFollowUp?.status);
+  const followUpLockMessage = getFollowUpLockMessage(activeFollowUp?.status, "ADMIN");
+
   const trackedApplicationIds = useMemo(
     () => new Set(followUps.map((followUp) => followUp.applicationId)),
     [followUps],
@@ -156,6 +176,53 @@ export default function AdminIncubationFollowupsManagement() {
     };
   }, [followUps]);
 
+  // Recharge le brouillon a chaque changement de dossier (et apres enregistrement,
+  // la valeur revenant du serveur) : sans ca, les notes d'un dossier resteraient
+  // affichees en selectionnant le suivant.
+  useEffect(() => {
+    setNotesDraft(activeFollowUp?.notes ?? "");
+  }, [activeFollowUp?.id, activeFollowUp?.notes]);
+
+  const handleSaveNotes = async () => {
+    if (!activeFollowUp) {
+      return;
+    }
+
+    setActionError("");
+    setIsSavingNotes(true);
+
+    try {
+      await updateFollowUp(activeFollowUp.id, { notes: notesDraft });
+    } catch (error) {
+      setActionError(
+        error instanceof Error ? error.message : "Impossible d'enregistrer les notes.",
+      );
+    } finally {
+      setIsSavingNotes(false);
+    }
+  };
+
+  const handleExportCsv = async () => {
+    if (!token) {
+      return;
+    }
+
+    setActionError("");
+    setIsExportingCsv(true);
+
+    try {
+      await downloadIncubationCsv(token);
+    } catch (error) {
+      setActionError(
+        error instanceof Error
+          ? error.message
+          : "Impossible d'exporter les suivis d'incubation.",
+      );
+    } finally {
+      setIsExportingCsv(false);
+    }
+  };
+
   const handleCreateFollowUp = async () => {
     if (!applicationId) {
       setActionError("Sélectionnez une candidature acceptée.");
@@ -176,7 +243,67 @@ export default function AdminIncubationFollowupsManagement() {
     }
   };
 
+  const handlePhaseChange = async (phase: FollowUpPhase) => {
+    if (!activeFollowUp) {
+      return;
+    }
+
+    setActionError("");
+    setIsUpdatingFollowUp(true);
+
+    try {
+      await updateFollowUp(activeFollowUp.id, { phase });
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : "Impossible de mettre à jour la phase.");
+    } finally {
+      setIsUpdatingFollowUp(false);
+    }
+  };
+
+  const handleRequestStatusChange = (status: FollowUpStatus) => {
+    if (!activeFollowUp || status === (activeFollowUp.status || "ACTIVE")) {
+      return;
+    }
+
+    setPendingStatusChange(status);
+  };
+
+  const cancelStatusChange = () => {
+    if (isUpdatingFollowUp) {
+      return;
+    }
+
+    setPendingStatusChange(null);
+  };
+
+  const confirmStatusChange = async () => {
+    if (!activeFollowUp || !pendingStatusChange) {
+      return;
+    }
+
+    setActionError("");
+    setIsUpdatingFollowUp(true);
+
+    try {
+      const isTerminal = pendingStatusChange !== "ACTIVE";
+
+      await updateFollowUp(activeFollowUp.id, {
+        status: pendingStatusChange,
+        ...(isTerminal ? { endDate: new Date().toISOString().slice(0, 10) } : {}),
+      });
+      setPendingStatusChange(null);
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : "Impossible de mettre à jour le statut.");
+    } finally {
+      setIsUpdatingFollowUp(false);
+    }
+  };
+
   const openCreateObjective = () => {
+    if (!isActiveFollowUpEditable) {
+      return;
+    }
+
     setEditingObjective(null);
     setObjectiveForm(emptyObjectiveForm);
     setActionError("");
@@ -184,6 +311,10 @@ export default function AdminIncubationFollowupsManagement() {
   };
 
   const openEditObjective = (objective: FollowUpObjective) => {
+    if (!isActiveFollowUpEditable) {
+      return;
+    }
+
     setEditingObjective(objective);
     setObjectiveForm({
       title: objective.title,
@@ -213,6 +344,11 @@ export default function AdminIncubationFollowupsManagement() {
 
     if (!activeFollowUp) {
       setActionError("Aucun suivi sélectionné.");
+      return;
+    }
+
+    if (!isActiveFollowUpEditable) {
+      setActionError(followUpLockMessage || "Ce suivi n’accepte plus de modification.");
       return;
     }
 
@@ -277,16 +413,27 @@ export default function AdminIncubationFollowupsManagement() {
               </p>
             </div>
 
-            <Button
-              disabled={isLoading}
-              onClick={() => void refresh().catch(() => {
-              })}
-              type="button"
-              variant="outline"
-            >
-              <RefreshCw className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
-              Actualiser
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                disabled={isExportingCsv}
+                onClick={() => void handleExportCsv()}
+                type="button"
+                variant="outline"
+              >
+                {isExportingCsv ? "Export…" : "Exporter en CSV"}
+              </Button>
+
+              <Button
+                disabled={isLoading}
+                onClick={() => void refresh().catch(() => {
+                })}
+                type="button"
+                variant="outline"
+              >
+                <RefreshCw className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
+                Actualiser
+              </Button>
+            </div>
           </div>
 
           <SummaryCards
@@ -333,8 +480,19 @@ export default function AdminIncubationFollowupsManagement() {
 
             {activeFollowUp && (
               <>
-                <FollowUpOverview followUp={activeFollowUp} />
+                <FollowUpOverview
+                  followUp={activeFollowUp}
+                  isSavingNotes={isSavingNotes}
+                  isUpdatingFollowUp={isUpdatingFollowUp}
+                  notesDraft={notesDraft}
+                  onNotesDraftChange={setNotesDraft}
+                  onPhaseChange={(phase) => void handlePhaseChange(phase)}
+                  onRequestStatusChange={handleRequestStatusChange}
+                  onSaveNotes={() => void handleSaveNotes()}
+                />
                 <ObjectivesSection
+                  isEditable={isActiveFollowUpEditable}
+                  lockMessage={followUpLockMessage}
                   objectives={activeFollowUp.objectives || []}
                   onAddObjective={openCreateObjective}
                   onEditObjective={openEditObjective}
@@ -355,6 +513,21 @@ export default function AdminIncubationFollowupsManagement() {
         onClose={closeObjectiveModal}
         onSubmit={handleObjectiveSubmit}
         values={objectiveForm}
+      />
+
+      <ConfirmDialog
+        confirmLabel="Confirmer"
+        description={
+          pendingStatusChange && pendingStatusChange !== "ACTIVE"
+            ? `Le suivi sera marqué « ${followUpStatusLabels[pendingStatusChange]} » avec une date de fin au ${formatDate(new Date().toISOString())}.`
+            : "Le suivi repassera au statut « Actif »."
+        }
+        isConfirming={isUpdatingFollowUp}
+        isOpen={pendingStatusChange !== null}
+        onCancel={cancelStatusChange}
+        onConfirm={() => void confirmStatusChange()}
+        title="Changer le statut du suivi ?"
+        tone={pendingStatusChange && pendingStatusChange !== "ACTIVE" ? "danger" : "brand"}
       />
     </RoleGuard>
   );

@@ -2,8 +2,16 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import RoleGuard from "@/src/components/auth/Roleguard";
+import StartupLogo from "@/src/components/dashboard/StartupLogo";
 import { useAuth } from "@/src/contexts/AuthContext";
 import { useEvaluations } from "@/src/contexts/EvaluationContext";
+import { downloadPitchDeck } from "@/src/lib/pitch-deck";
+import {
+  SCORE_MAX,
+  SCORE_MIN,
+  isValidScore,
+  parseScore,
+} from "@/src/lib/evaluation-scores";
 import type { Evaluation, EvaluationRecommendation } from "@/src/types/evaluation";
 
 type ReviewFormState = {
@@ -69,20 +77,136 @@ function formatDate(value?: string | null): string {
   }).format(date);
 }
 
-function parseScore(input: string): number | undefined {
-  const trimmed = input.trim();
+function DossierField({ label, value }: { label: string; value?: string | null }) {
+  const text = value?.trim();
 
-  if (!trimmed) {
-    return undefined;
+  return (
+    <div>
+      <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-foreground-muted">
+        {label}
+      </p>
+      <p className={`mt-1 text-sm ${text ? "text-foreground" : "italic text-foreground-muted"}`}>
+        {text || "Non renseigne"}
+      </p>
+    </div>
+  );
+}
+
+function DossierLink({ label, url }: { label: string; url?: string | null }) {
+  const href = url?.trim();
+
+  return (
+    <div className="min-w-0">
+      <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-foreground-muted">
+        {label}
+      </p>
+      {href ? (
+        <a
+          className="mt-1 block truncate text-sm text-brand-strong underline underline-offset-2"
+          href={href.startsWith("http") ? href : `https://${href}`}
+          rel="noreferrer noopener"
+          target="_blank"
+        >
+          {href}
+        </a>
+      ) : (
+        <p className="mt-1 text-sm italic text-foreground-muted">Non renseigne</p>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Le dossier sur lequel porte la note. Sans ce bloc, l'evaluateur remplit 5
+ * criteres en ne voyant que le nom de la startup : toutes ces donnees sont deja
+ * renvoyees par GET /evaluation/me, elles n'etaient simplement pas affichees.
+ */
+function ApplicationDossier({
+  evaluation,
+  isDownloading,
+  onDownloadDeck,
+}: {
+  evaluation: Evaluation;
+  isDownloading: boolean;
+  onDownloadDeck: (startupId: string, fileName?: string | null) => void;
+}) {
+  const application = evaluation.application;
+  const startup = application?.startup;
+
+  if (!application && !startup) {
+    return (
+      <p className="mt-3 rounded-xl border border-border/75 bg-white px-3 py-3 text-sm text-foreground-muted">
+        Le dossier de cette candidature n&apos;a pas pu etre charge.
+      </p>
+    );
   }
 
-  const value = Number(trimmed);
+  const website = startup?.website?.trim();
+  const deckName = startup?.pitchDeckOriginalName?.trim();
 
-  if (!Number.isFinite(value)) {
-    return undefined;
-  }
+  return (
+    <section className="mt-3 rounded-xl border border-border/75 bg-white p-4">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <div className="flex min-w-0 items-center gap-3">
+          {startup && (
+            <StartupLogo
+              className="h-10 w-10 flex-none rounded-lg border border-border/70 object-contain"
+              hasLogo={Boolean(startup.logoOriginalName)}
+              startupId={startup.id}
+              startupName={startup.startupName}
+            />
+          )}
+          <h3 className="truncate text-sm font-semibold text-foreground">
+            {startup?.startupName || "Startup"}
+          </h3>
+        </div>
+        <p className="text-xs text-foreground-muted">
+          {application?.program?.title || application?.programId || "-"}
+        </p>
+      </div>
 
-  return value;
+      <div className="mt-4 grid gap-3 sm:grid-cols-3">
+        <DossierField label="Secteur" value={startup?.sector} />
+        <DossierField label="Stade" value={startup?.stage} />
+        <DossierLink label="Site web" url={website} />
+        <DossierLink label="LinkedIn" url={startup?.linkedinUrl} />
+        <DossierLink label="Deck externe" url={startup?.deckUrl} />
+      </div>
+
+      <div className="mt-4">
+        <DossierField label="Description" value={startup?.description} />
+      </div>
+
+      <div className="mt-4">
+        <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-foreground-muted">
+          Lettre de motivation
+        </p>
+        <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-foreground">
+          {application?.motivationLetter?.trim() || "Aucune lettre de motivation."}
+        </p>
+      </div>
+
+      <div className="mt-4 border-t border-border/60 pt-3">
+        {startup && deckName ? (
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              className="dashboard-btn rounded-lg border border-border bg-white px-3 py-1.5 text-xs font-medium text-foreground hover:border-brand/35 hover:text-brand-strong disabled:cursor-not-allowed disabled:opacity-70"
+              disabled={isDownloading}
+              onClick={() => onDownloadDeck(startup.id, deckName)}
+              type="button"
+            >
+              {isDownloading ? "Telechargement..." : "Telecharger le pitch deck"}
+            </button>
+            <span className="text-xs text-foreground-muted">{deckName}</span>
+          </div>
+        ) : (
+          <p className="text-xs italic text-foreground-muted">
+            Aucun pitch deck n&apos;est attache a ce profil startup.
+          </p>
+        )}
+      </div>
+    </section>
+  );
 }
 
 function mapEvaluationToForm(evaluation: Evaluation): ReviewFormState {
@@ -123,7 +247,8 @@ function getStartupLabelFromEvaluation(evaluation: Evaluation): string {
 }
 
 export default function EvaluatorReviewsManagement() {
-  const { isAuthReady, isAuthenticated } = useAuth();
+  const { isAuthReady, isAuthenticated, token } = useAuth();
+  const [isDownloadingDeck, setIsDownloadingDeck] = useState(false);
   const {
     myEvaluations,
     isEvaluationsLoading,
@@ -270,6 +395,25 @@ export default function EvaluatorReviewsManagement() {
     setActionError(null);
   };
 
+  const handleDownloadDeck = async (startupId: string, fileName?: string | null) => {
+    if (!token) {
+      return;
+    }
+
+    resetFeedback();
+    setIsDownloadingDeck(true);
+
+    try {
+      await downloadPitchDeck(startupId, token, fileName);
+    } catch (error) {
+      setActionError(
+        error instanceof Error ? error.message : "Impossible de telecharger le pitch deck.",
+      );
+    } finally {
+      setIsDownloadingDeck(false);
+    }
+  };
+
   const handleSaveDraft = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
@@ -341,6 +485,15 @@ export default function EvaluatorReviewsManagement() {
       !comment
     ) {
       setActionError("Complete tous les champs avant la soumission finale.");
+      return;
+    }
+
+    if (
+      ![innovationScore, marketScore, teamScore, feasibilityScore, fitScore].every(isValidScore)
+    ) {
+      setActionError(
+        `Chaque score doit etre un entier entre ${SCORE_MIN} et ${SCORE_MAX}.`,
+      );
       return;
     }
 
@@ -494,18 +647,26 @@ export default function EvaluatorReviewsManagement() {
             )}
 
             {selectedEvaluation && (
+              <ApplicationDossier
+                evaluation={selectedEvaluation}
+                isDownloading={isDownloadingDeck}
+                onDownloadDeck={handleDownloadDeck}
+              />
+            )}
+
+            {selectedEvaluation && (
               <form className="mt-3 space-y-4" onSubmit={handleSaveDraft}>
                 <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
                   <label className="text-xs text-foreground-muted">
                     Innovation
                     <input
                       className="mt-1 w-full rounded-lg border border-border bg-white px-2.5 py-2 text-sm text-foreground outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20"
-                      max="10"
-                      min="0"
+                      max="5"
+                      min="1"
                       onChange={(event) =>
                         setForm((current) => ({ ...current, innovationScore: event.target.value }))
                       }
-                      step="0.1"
+                      step="1"
                       type="number"
                       value={form.innovationScore}
                     />
@@ -515,12 +676,12 @@ export default function EvaluatorReviewsManagement() {
                     Marche
                     <input
                       className="mt-1 w-full rounded-lg border border-border bg-white px-2.5 py-2 text-sm text-foreground outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20"
-                      max="10"
-                      min="0"
+                      max="5"
+                      min="1"
                       onChange={(event) =>
                         setForm((current) => ({ ...current, marketScore: event.target.value }))
                       }
-                      step="0.1"
+                      step="1"
                       type="number"
                       value={form.marketScore}
                     />
@@ -530,12 +691,12 @@ export default function EvaluatorReviewsManagement() {
                     Equipe
                     <input
                       className="mt-1 w-full rounded-lg border border-border bg-white px-2.5 py-2 text-sm text-foreground outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20"
-                      max="10"
-                      min="0"
+                      max="5"
+                      min="1"
                       onChange={(event) =>
                         setForm((current) => ({ ...current, teamScore: event.target.value }))
                       }
-                      step="0.1"
+                      step="1"
                       type="number"
                       value={form.teamScore}
                     />
@@ -545,12 +706,12 @@ export default function EvaluatorReviewsManagement() {
                     Faisabilite
                     <input
                       className="mt-1 w-full rounded-lg border border-border bg-white px-2.5 py-2 text-sm text-foreground outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20"
-                      max="10"
-                      min="0"
+                      max="5"
+                      min="1"
                       onChange={(event) =>
                         setForm((current) => ({ ...current, feasibilityScore: event.target.value }))
                       }
-                      step="0.1"
+                      step="1"
                       type="number"
                       value={form.feasibilityScore}
                     />
@@ -560,12 +721,12 @@ export default function EvaluatorReviewsManagement() {
                     Fit
                     <input
                       className="mt-1 w-full rounded-lg border border-border bg-white px-2.5 py-2 text-sm text-foreground outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20"
-                      max="10"
-                      min="0"
+                      max="5"
+                      min="1"
                       onChange={(event) =>
                         setForm((current) => ({ ...current, fitScore: event.target.value }))
                       }
-                      step="0.1"
+                      step="1"
                       type="number"
                       value={form.fitScore}
                     />

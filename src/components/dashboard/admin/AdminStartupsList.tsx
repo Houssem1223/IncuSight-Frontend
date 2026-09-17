@@ -1,12 +1,57 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
+import StartupLogo from "@/src/components/dashboard/StartupLogo";
 import { useAuth } from "@/src/contexts/AuthContext";
 import { useStartups } from "@/src/contexts/StartupContext";
 import { useAutoRefresh } from "@/src/hooks/useAutoRefresh";
+import { downloadStartupsCsv } from "@/src/lib/reports";
+
+// Une pastille par lien renseigne : la colonne reste lisible meme quand les trois
+// sont presents, et on n'affiche rien plutot qu'un lien mort quand il manque.
+function ExternalLinkChip({ label, url }: { label: string; url?: string | null }) {
+  const href = url?.trim();
+
+  if (!href) {
+    return null;
+  }
+
+  return (
+    <a
+      className="inline-flex rounded-full border border-border px-2 py-0.5 text-xs text-brand-strong hover:border-brand/35"
+      href={href.startsWith("http") ? href : `https://${href}`}
+      rel="noreferrer noopener"
+      target="_blank"
+    >
+      {label}
+    </a>
+  );
+}
 
 export default function AdminStartupsList() {
-  const { isAuthReady, isAuthenticated } = useAuth();
+  const { isAuthReady, isAuthenticated, token } = useAuth();
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportError, setExportError] = useState("");
+
+  const handleExport = async () => {
+    if (!token) {
+      return;
+    }
+
+    setExportError("");
+    setIsExporting(true);
+
+    try {
+      await downloadStartupsCsv(token);
+    } catch (error) {
+      setExportError(
+        error instanceof Error ? error.message : "Impossible d'exporter les startups.",
+      );
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   const { startups, isStartupsLoading, startupsError, clearStartupsError, fetchAllStartups } =
     useStartups();
 
@@ -96,6 +141,18 @@ export default function AdminStartupsList() {
             value={searchTerm}
           />
         </div>
+
+        <div className="flex flex-col items-start gap-1">
+          <button
+            className="dashboard-btn rounded-xl border border-border bg-white px-3 py-2 text-sm font-medium text-foreground hover:border-brand/35 hover:text-brand-strong disabled:cursor-not-allowed disabled:opacity-70"
+            disabled={isExporting}
+            onClick={() => void handleExport()}
+            type="button"
+          >
+            {isExporting ? "Export..." : "Exporter en CSV"}
+          </button>
+          {exportError && <span className="text-xs text-red-700">{exportError}</span>}
+        </div>
       </div>
 
       {isStartupsLoading && (
@@ -120,6 +177,7 @@ export default function AdminStartupsList() {
                   <th className="px-4 py-3 font-medium">Startup</th>
                   <th className="px-4 py-3 font-medium">Sector</th>
                   <th className="px-4 py-3 font-medium">Stage</th>
+                  <th className="px-4 py-3 font-medium">Liens</th>
                   <th className="px-4 py-3 font-medium">Owner</th>
                   <th className="px-4 py-3 font-medium">Status</th>
                 </tr>
@@ -127,7 +185,7 @@ export default function AdminStartupsList() {
               <tbody>
                 {filteredStartups.length === 0 && (
                   <tr>
-                    <td className="px-4 py-6 text-center text-foreground-muted" colSpan={5}>
+                    <td className="px-4 py-6 text-center text-foreground-muted" colSpan={6}>
                       {searchTerm.trim() ? "No matching startups found." : "No startups found."}
                     </td>
                   </tr>
@@ -142,20 +200,37 @@ export default function AdminStartupsList() {
                     .join(" ")
                     .trim();
                   const owner = ownerName || startup.owner?.email || startup.ownerId;
-                  const status = startup.status || "PENDING";
-
+                  // StartupProfileStatus ne vaut que DRAFT ou PUBLISHED : l'ancien
+                  // mapping accepted/rejected/PENDING datait d'avant cette migration
+                  // et affichait un badge orange « PENDING » sur tous les profils.
+                  const status = startup.status === "PUBLISHED" ? "PUBLISHED" : "DRAFT";
                   const statusClass =
-                    status.toLowerCase() === "accepted"
+                    status === "PUBLISHED"
                       ? "bg-emerald-50 text-emerald-700"
-                      : status.toLowerCase() === "rejected"
-                        ? "bg-red-50 text-red-700"
-                        : "bg-amber-50 text-amber-700";
+                      : "bg-slate-100 text-slate-600";
 
                   return (
                     <tr className="border-t border-border/60" key={startup.id}>
-                      <td className="px-4 py-3 text-foreground">{startupName}</td>
+                      <td className="px-4 py-3 text-foreground">
+                        <div className="flex items-center gap-2.5">
+                          <StartupLogo
+                            className="h-8 w-8 flex-none rounded-lg border border-border/70 object-contain"
+                            hasLogo={Boolean(startup.logoOriginalName)}
+                            startupId={startup.id}
+                            startupName={startupName}
+                          />
+                          <span>{startupName}</span>
+                        </div>
+                      </td>
                       <td className="px-4 py-3 text-foreground-muted">{sector}</td>
                       <td className="px-4 py-3 text-foreground-muted">{stage}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex flex-wrap gap-1.5">
+                          <ExternalLinkChip label="Site" url={startup.website} />
+                          <ExternalLinkChip label="LinkedIn" url={startup.linkedinUrl} />
+                          <ExternalLinkChip label="Deck" url={startup.deckUrl} />
+                        </div>
+                      </td>
                       <td className="px-4 py-3 text-foreground-muted">{owner}</td>
                       <td className="px-4 py-3">
                         <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${statusClass}`}>

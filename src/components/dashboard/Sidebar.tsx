@@ -29,7 +29,7 @@ export default function Sidebar({ role, user, isOpen, onClose, onLogout }: Sideb
   const { unreadCount } = useNotifications();
   const { startups } = useStartups();
   const { programs } = usePrograms();
-  const { applications } = useApplications();
+  const { applications, applicationsTotal } = useApplications();
 
   // Contextes partages avec les pages de gestion admin (voir AdminLayout pour
   // le refresh periodique) : la sidebar ne fait aucun fetch, elle lit l'etat
@@ -38,7 +38,9 @@ export default function Sidebar({ role, user, isOpen, onClose, onLogout }: Sideb
     notifications: unreadCount,
     startups: startups.length,
     programs: programs.length,
-    applications: applications.length,
+    // La liste des candidatures est paginee depuis V3-05 : `applications.length`
+    // ne vaut plus que la page courante, le total vient de l'en-tete X-Total-Count.
+    applications: applicationsTotal ?? applications.length,
   };
 
   const initials = [user.firstName, user.lastName]

@@ -1,9 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/src/contexts/AuthContext";
 import { useNotifications } from "@/src/contexts/NotificationContext";
 import type { Notification } from "@/src/types/notification";
+import { getNotificationDetails } from "@/src/lib/notification-details";
+import { resolveNotificationHref } from "./notificationLinks";
 
 type NotificationsPanelProps = {
   title?: string;
@@ -63,6 +66,9 @@ export default function NotificationsPanel({
     notificationsError,
     clearNotificationsError,
     fetchMyNotifications,
+    loadMoreNotifications,
+    hasMoreNotifications,
+    isLoadingMoreNotifications,
     fetchUnreadCount,
     markNotificationAsRead,
     markAllNotificationsAsRead,
@@ -204,8 +210,10 @@ export default function NotificationsPanel({
           {displayNotifications.map((notification) => {
             const badge = getNotificationBadge(notification);
             const message = getNotificationMessage(notification);
+            const details = getNotificationDetails(notification);
             const unread = isUnread(notification);
             const isBusy = actionId === notification.id || isNotificationsLoading;
+            const href = resolveNotificationHref(notification, user?.role);
 
             return (
               <li
@@ -225,6 +233,32 @@ export default function NotificationsPanel({
                       <p className="mt-1 text-sm text-foreground-muted">{message}</p>
                     )}
 
+                    {/* `data` porte le contexte de l'evenement depuis le debut
+                        (commentaire de decision, programme, startup, echeance).
+                        Sans ca, il fallait ouvrir la ressource pour le savoir. */}
+                    {details.comment && (
+                      <blockquote className="mt-2 border-l-2 border-brand/40 pl-3 text-sm italic text-foreground">
+                        {details.comment}
+                      </blockquote>
+                    )}
+
+                    {(details.facts.length > 0 || details.deadlineAt) && (
+                      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-foreground-muted">
+                        {details.facts.map((fact) => (
+                          <span key={fact.label}>
+                            <span className="font-medium text-foreground">{fact.label} :</span>{" "}
+                            {fact.value}
+                          </span>
+                        ))}
+                        {details.deadlineAt && (
+                          <span>
+                            <span className="font-medium text-foreground">Echeance :</span>{" "}
+                            {formatDate(details.deadlineAt)}
+                          </span>
+                        )}
+                      </div>
+                    )}
+
                     <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-foreground-muted">
                       {badge && (
                         <span className="rounded-full border border-border px-2 py-0.5">
@@ -241,6 +275,21 @@ export default function NotificationsPanel({
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2">
+                    {href && (
+                      <Link
+                        className="dashboard-btn rounded-full border border-brand/35 bg-white px-3 py-1 text-xs font-semibold text-brand-strong hover:border-brand"
+                        href={href}
+                        // Ouvrir la ressource vaut prise de connaissance : sans ca, la
+                        // notification resterait « non lue » apres avoir ete traitee.
+                        onClick={() => {
+                          if (unread) {
+                            void handleMarkAsRead(notification.id);
+                          }
+                        }}
+                      >
+                        Consulter
+                      </Link>
+                    )}
                     {unread && (
                       <button
                         className="dashboard-btn rounded-full border border-border bg-white px-3 py-1 text-xs font-semibold text-foreground hover:border-brand/35"
@@ -265,6 +314,22 @@ export default function NotificationsPanel({
             );
           })}
         </ul>
+      )}
+
+      {/* La liste etait chargee d'un bloc et grossissait sans borne. Le backend
+          pagine ; on empile les pages plutot que de naviguer page par page, ce
+          qui casserait le flux temps reel du socket. */}
+      {hasMoreNotifications && (
+        <div className="mt-4 flex justify-center">
+          <button
+            className="dashboard-btn rounded-full border border-border bg-white px-4 py-1.5 text-xs font-semibold text-foreground hover:border-brand/35 disabled:opacity-60"
+            disabled={isLoadingMoreNotifications}
+            onClick={() => void loadMoreNotifications().catch(() => {})}
+            type="button"
+          >
+            {isLoadingMoreNotifications ? "Chargement..." : "Charger plus"}
+          </button>
+        </div>
       )}
     </section>
   );

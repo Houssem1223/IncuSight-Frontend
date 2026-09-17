@@ -27,7 +27,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html className="scroll-smooth" lang="fr">
+    // `data-scroll-behavior="smooth"` declare a Next que le defilement doux est
+    // assume : sans cet attribut, le router avertit en console a chaque
+    // transition, parce qu'il ne peut pas restaurer la position de scroll
+    // instantanement quand `scroll-behavior: smooth` est actif sur <html>.
+    <html className="scroll-smooth" data-scroll-behavior="smooth" lang="fr">
       <body
         className={`${geist.variable} ${geistMono.variable} font-sans antialiased bg-background text-foreground`}
       >

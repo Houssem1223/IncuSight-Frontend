@@ -1,5 +1,12 @@
 "use client";
 
+import { useState } from "react";
+import { useAuth } from "@/src/contexts/AuthContext";
+import {
+  downloadFollowUpAttachment,
+  formatFileSize,
+  getAttachmentAuthorLabel,
+} from "@/src/lib/follow-up-attachments";
 import type { FollowUpUpdate } from "@/src/types/incubation-followups";
 import { formatDate } from "./followupHelpers";
 
@@ -8,6 +15,29 @@ type UpdatesTimelineProps = {
 };
 
 export default function UpdatesTimeline({ updates }: UpdatesTimelineProps) {
+  const { token } = useAuth();
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [downloadError, setDownloadError] = useState("");
+
+  const handleDownload = async (attachmentId: string, fileName: string) => {
+    if (!token) {
+      return;
+    }
+
+    setDownloadError("");
+    setDownloadingId(attachmentId);
+
+    try {
+      await downloadFollowUpAttachment(attachmentId, token, fileName);
+    } catch (error) {
+      setDownloadError(
+        error instanceof Error ? error.message : "Impossible de télécharger ce livrable.",
+      );
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
   return (
     <section className="dashboard-surface p-6">
       <div>
@@ -20,6 +50,12 @@ export default function UpdatesTimeline({ updates }: UpdatesTimelineProps) {
       {updates.length === 0 && (
         <p className="mt-4 rounded-xl border border-border/75 bg-white p-4 text-sm text-foreground-muted">
           Aucun compte rendu transmis.
+        </p>
+      )}
+
+      {downloadError && (
+        <p className="mt-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          {downloadError}
         </p>
       )}
 
@@ -76,6 +112,43 @@ export default function UpdatesTimeline({ updates }: UpdatesTimelineProps) {
                   </div>
                 )}
               </div>
+
+              {(update.attachments?.length || 0) > 0 && (
+                <div className="mt-4 border-t border-border/60 pt-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.1em] text-foreground-muted">
+                    Livrables joints
+                  </p>
+                  <ul className="mt-2 flex flex-wrap gap-2">
+                    {(update.attachments || []).map((attachment) => {
+                      const author = getAttachmentAuthorLabel(attachment);
+
+                      return (
+                      <li key={attachment.id}>
+                        <button
+                          className="dashboard-btn rounded-lg border border-border bg-white px-2.5 py-1 text-xs font-medium text-foreground hover:border-brand/35 hover:text-brand-strong disabled:opacity-70"
+                          disabled={downloadingId === attachment.id}
+                          onClick={() =>
+                            void handleDownload(attachment.id, attachment.originalName)
+                          }
+                          type="button"
+                        >
+                          {downloadingId === attachment.id
+                            ? "Téléchargement…"
+                            : `${attachment.originalName} · ${formatFileSize(attachment.size)}`}
+                        </button>
+                        {/* Seule une startup depose un livrable : c'est ici, dans la
+                            vue partagee, que l'auteur renseigne. */}
+                        {author && (
+                          <span className="ml-2 text-xs text-foreground-muted">
+                            déposé par {author}
+                          </span>
+                        )}
+                      </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )}
             </div>
           </article>
         ))}

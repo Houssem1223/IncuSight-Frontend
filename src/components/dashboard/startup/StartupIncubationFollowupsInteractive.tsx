@@ -23,6 +23,17 @@ import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { Progress } from "@/src/components/ui/progress";
 import { useIncubationFollowups } from "@/src/contexts/IncubationFollowupsContext";
+import { useAuth } from "@/src/contexts/AuthContext";
+import { useBusinessRules } from "@/src/hooks/useBusinessRules";
+import {
+
+  downloadFollowUpAttachment,
+  formatFileSize,
+} from "@/src/lib/follow-up-attachments";
+import {
+  getFollowUpLockMessage,
+  isFollowUpOpen,
+} from "@/src/lib/incubation-followup-state";
 import type {
   FollowUpObjective,
   FollowUpObjectivePriority,
@@ -137,7 +148,59 @@ export default function StartupIncubationFollowupsInteractive({
   followUp,
 }: StartupIncubationFollowupsInteractiveProps) {
   const fieldIdPrefix = useId();
-  const { updateObjectiveByStartup, addUpdate } = useIncubationFollowups();
+  const {
+    updateObjectiveByStartup,
+    addUpdate,
+    addUpdateAttachment,
+    removeUpdateAttachment,
+    fetchMyFollowUps,
+  } = useIncubationFollowups();
+  const { token } = useAuth();
+  const { MAX_ATTACHMENTS_PER_FOLLOWUP_UPDATE } = useBusinessRules();
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [downloadingAttachmentId, setDownloadingAttachmentId] = useState<string | null>(null);
+  const [removingAttachmentId, setRemovingAttachmentId] = useState<string | null>(null);
+
+  const handleRemoveAttachment = async (attachmentId: string) => {
+    if (!isEditable) {
+      return;
+    }
+
+    setActionError("");
+    setRemovingAttachmentId(attachmentId);
+
+    try {
+      await removeUpdateAttachment(attachmentId);
+      // La suppression renvoie un message, pas le suivi : on recharge pour que la
+      // liste des livrables reflete l'etat reel.
+      await fetchMyFollowUps();
+    } catch (error) {
+      setActionError(
+        error instanceof Error ? error.message : "Impossible de supprimer ce livrable.",
+      );
+    } finally {
+      setRemovingAttachmentId(null);
+    }
+  };
+
+  const handleDownloadAttachment = async (attachmentId: string, fileName: string) => {
+    if (!token) {
+      return;
+    }
+
+    setActionError("");
+    setDownloadingAttachmentId(attachmentId);
+
+    try {
+      await downloadFollowUpAttachment(attachmentId, token, fileName);
+    } catch (error) {
+      setActionError(
+        error instanceof Error ? error.message : "Impossible de telecharger ce livrable.",
+      );
+    } finally {
+      setDownloadingAttachmentId(null);
+    }
+  };
   const [objectiveToUpdate, setObjectiveToUpdate] = useState<FollowUpObjective | null>(null);
   const [objectiveStatus, setObjectiveStatus] = useState<FollowUpObjectiveStatus>("TODO");
   const [objectiveProgress, setObjectiveProgress] = useState("0");
@@ -155,6 +218,12 @@ export default function StartupIncubationFollowupsInteractive({
   const [actionError, setActionError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
 
+  // Un suivi COMPLETED / SUSPENDED / DROPPED n'accepte plus d'ecriture. La garde
+  // est aussi posee dans les handlers : desactiver un bouton ne protege de rien
+  // si l'etat change pendant qu'une modale est ouverte.
+  const isEditable = isFollowUpOpen(followUp.status);
+  const lockMessage = getFollowUpLockMessage(followUp.status, "STARTUP");
+
   const objectiveSummary = useMemo(() => {
     const objectives = followUp.objectives || [];
 
@@ -166,6 +235,10 @@ export default function StartupIncubationFollowupsInteractive({
   }, [followUp.objectives]);
 
   const openObjectiveModal = (objective: FollowUpObjective) => {
+    if (!isEditable) {
+      return;
+    }
+
     setObjectiveToUpdate(objective);
     setObjectiveStatus(objective.status || "TODO");
     setObjectiveProgress(String(objective.progress ?? 0));
@@ -185,7 +258,7 @@ export default function StartupIncubationFollowupsInteractive({
   const handleObjectiveSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (!objectiveToUpdate) {
+    if (!objectiveToUpdate || !isEditable) {
       return;
     }
 
@@ -210,6 +283,10 @@ export default function StartupIncubationFollowupsInteractive({
   };
 
   const openUpdateModal = () => {
+    if (!isEditable) {
+      return;
+    }
+
     setUpdateForm({
       title: "",
       done: "",
@@ -235,6 +312,10 @@ export default function StartupIncubationFollowupsInteractive({
   const handleUpdateSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
+    if (!isEditable) {
+      return;
+    }
+
     const done = updateForm.done.trim();
 
     if (!done) {
@@ -247,7 +328,7 @@ export default function StartupIncubationFollowupsInteractive({
     setSuccessMessage("");
 
     try {
-      await addUpdate(followUp.id, {
+      const created = await addUpdate(followUp.id, {
         ...(updateForm.title.trim() ? { title: updateForm.title.trim() } : {}),
         done,
         ...(updateForm.blockers.trim() ? { blockers: updateForm.blockers.trim() } : {}),
@@ -257,8 +338,27 @@ export default function StartupIncubationFollowupsInteractive({
           : {}),
         progress: clampProgress(Number(updateForm.progress)),
       });
+
+      // Les livrables partent apres la creation du point : c'est le seul moment ou
+      // l'on connait son id. Un echec d'upload ne doit pas faire croire que le
+      // compte rendu lui-meme a echoue — il est deja publie.
+      const failedUploads: string[] = [];
+
+      for (const file of pendingFiles) {
+        try {
+          await addUpdateAttachment(created.id, file);
+        } catch {
+          failedUploads.push(file.name);
+        }
+      }
+
       setIsUpdateModalOpen(false);
-      setSuccessMessage("Votre compte rendu a été publié.");
+      setPendingFiles([]);
+      setSuccessMessage(
+        failedUploads.length
+          ? `Compte rendu publié, mais ces fichiers n'ont pas pu être joints : ${failedUploads.join(", ")}.`
+          : "Votre compte rendu a été publié.",
+      );
     } catch (error) {
       setActionError(
         error instanceof Error ? error.message : "Impossible de publier le compte rendu.",
@@ -341,11 +441,15 @@ export default function StartupIncubationFollowupsInteractive({
           />
         </div>
 
-        {followUp.notes && (
-          <p className="mt-5 rounded-xl border border-border/70 bg-white p-4 text-sm text-foreground-muted">
-            {followUp.notes}
+        {lockMessage && (
+          <p className="mt-5 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            <TriangleAlert className="mt-0.5 h-4 w-4 flex-none" />
+            <span>{lockMessage}</span>
           </p>
         )}
+
+        {/* `notes` n'est plus renvoye a la startup : ce sont les notes internes de
+            l'equipe d'incubation (voir findMine cote backend). */}
       </section>
 
       <section className="dashboard-surface p-6">
@@ -392,6 +496,7 @@ export default function StartupIncubationFollowupsInteractive({
                     )}
                   </div>
                   <Button
+                    disabled={!isEditable}
                     onClick={() => openObjectiveModal(objective)}
                     size="sm"
                     type="button"
@@ -441,7 +546,7 @@ export default function StartupIncubationFollowupsInteractive({
               Partagez un point régulier avec vos réalisations, obstacles et besoins.
             </p>
           </div>
-          <Button onClick={openUpdateModal} size="sm" type="button">
+          <Button disabled={!isEditable} onClick={openUpdateModal} size="sm" type="button">
             <MessageSquarePlus className="h-4 w-4" />
             Nouveau compte rendu
           </Button>
@@ -454,7 +559,9 @@ export default function StartupIncubationFollowupsInteractive({
               Aucun compte rendu pour le moment
             </p>
             <p className="mt-1 text-xs text-foreground-muted">
-              Publiez votre premier point d’avancement pour informer l’équipe.
+              {isEditable
+                ? "Publiez votre premier point d’avancement pour informer l’équipe."
+                : "Ce parcours s’est achevé sans compte rendu publié."}
             </p>
           </div>
         )}
@@ -517,6 +624,43 @@ export default function StartupIncubationFollowupsInteractive({
                     </div>
                   )}
                 </div>
+
+                {(update.attachments?.length || 0) > 0 && (
+                  <div className="mt-4 border-t border-border/60 pt-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.1em] text-foreground-muted">
+                      Livrables joints
+                    </p>
+                    <ul className="mt-2 space-y-1.5">
+                      {(update.attachments || []).map((attachment) => (
+                        <li className="flex flex-wrap items-center gap-2" key={attachment.id}>
+                          <button
+                            className="dashboard-btn rounded-lg border border-border bg-white px-2.5 py-1 text-xs font-medium text-foreground hover:border-brand/35 hover:text-brand-strong disabled:opacity-70"
+                            disabled={downloadingAttachmentId === attachment.id}
+                            onClick={() => void handleDownloadAttachment(attachment.id, attachment.originalName)}
+                            type="button"
+                          >
+                            {downloadingAttachmentId === attachment.id
+                              ? "Telechargement..."
+                              : attachment.originalName}
+                          </button>
+                          <span className="text-xs text-foreground-muted">
+                            {formatFileSize(attachment.size)}
+                          </span>
+                          <button
+                            className="text-xs text-red-700 underline underline-offset-2 disabled:opacity-60"
+                            disabled={removingAttachmentId === attachment.id || !isEditable}
+                            onClick={() => void handleRemoveAttachment(attachment.id)}
+                            type="button"
+                          >
+                            {removingAttachmentId === attachment.id
+                              ? "Suppression..."
+                              : "Supprimer"}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
             </article>
           ))}
@@ -701,6 +845,36 @@ export default function StartupIncubationFollowupsInteractive({
             />
           </FormField>
         </div>
+
+        <FormField
+          htmlFor={`${fieldIdPrefix}-update-attachments`}
+          hint={`Jusqu'a ${MAX_ATTACHMENTS_PER_FOLLOWUP_UPDATE} fichiers, 15 Mo maximum chacun (PDF, Word, PowerPoint, Excel, CSV, PNG, JPEG).`}
+          label="Livrables joints"
+        >
+          <input
+            accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.csv,.png,.jpg,.jpeg"
+            className="block w-full text-sm text-foreground-muted file:mr-3 file:rounded-lg file:border file:border-border file:bg-white file:px-3 file:py-1.5 file:text-sm file:text-foreground"
+            disabled={isSavingUpdate}
+            id={`${fieldIdPrefix}-update-attachments`}
+            multiple
+            onChange={(event) =>
+              setPendingFiles(
+                Array.from(event.target.files ?? []).slice(0, MAX_ATTACHMENTS_PER_FOLLOWUP_UPDATE),
+              )
+            }
+            type="file"
+          />
+        </FormField>
+
+        {pendingFiles.length > 0 && (
+          <ul className="space-y-1 text-xs text-foreground-muted">
+            {pendingFiles.map((file) => (
+              <li key={`${file.name}-${file.size}`}>
+                {file.name} — {formatFileSize(file.size)}
+              </li>
+            ))}
+          </ul>
+        )}
 
         <FormActions>
           <Button

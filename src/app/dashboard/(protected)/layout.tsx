@@ -16,24 +16,27 @@ import Sidebar from "@/src/components/dashboard/Sidebar";
 import Header from "@/src/components/dashboard/Header";
 import ProfileLoadError from "@/src/components/auth/ProfileLoadError";
 import { LANDING_LOGIN_ROUTE } from "@/src/lib/auth-routing";
+import DashboardQueryProvider from "@/src/components/dashboard/DashboardQueryProvider";
 
 function DashboardProviders({ children }: { children: ReactNode }) {
   return (
-    <StartupProvider>
-      <ProgramProvider>
-        <ProgramEvaluatorProvider>
-          <ApplicationProvider>
-            <ApplicationEvaluatorProvider>
-              <EvaluationProvider>
-                <IncubationFollowupsProvider>
-                  <NotificationProvider>{children}</NotificationProvider>
-                </IncubationFollowupsProvider>
-              </EvaluationProvider>
-            </ApplicationEvaluatorProvider>
-          </ApplicationProvider>
-        </ProgramEvaluatorProvider>
-      </ProgramProvider>
-    </StartupProvider>
+    <DashboardQueryProvider>
+      <StartupProvider>
+        <ProgramProvider>
+          <ProgramEvaluatorProvider>
+            <ApplicationProvider>
+              <ApplicationEvaluatorProvider>
+                <EvaluationProvider>
+                  <IncubationFollowupsProvider>
+                    <NotificationProvider>{children}</NotificationProvider>
+                  </IncubationFollowupsProvider>
+                </EvaluationProvider>
+              </ApplicationEvaluatorProvider>
+            </ApplicationProvider>
+          </ProgramEvaluatorProvider>
+        </ProgramProvider>
+      </StartupProvider>
+    </DashboardQueryProvider>
   );
 }
 

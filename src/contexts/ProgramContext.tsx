@@ -34,7 +34,6 @@ type ProgramContextType = {
   clearProgramsError: () => void;
   fetchAllPrograms: () => Promise<Program[]>;
   fetchPublicPrograms: () => Promise<Program[]>;
-  findOneProgram: (id: string) => Promise<Program>;
   createProgram: (payload: CreateProgramPayload) => Promise<Program>;
   updateProgram: (id: string, payload: UpdateProgramPayload) => Promise<Program>;
   removeProgram: (id: string) => Promise<BackendMessage>;
@@ -122,16 +121,6 @@ export function ProgramProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const findOneProgram = useCallback(
-    async (id: string) => {
-      const authToken = getRequiredToken();
-      const program = await apiFetch<Program>(`program/${id}`, {}, authToken);
-      upsertProgram(program);
-      return program;
-    },
-    [getRequiredToken, upsertProgram],
-  );
-
   const createProgram = useCallback(
     async (payload: CreateProgramPayload) => {
       const authToken = getRequiredToken();
@@ -196,7 +185,6 @@ export function ProgramProvider({ children }: { children: ReactNode }) {
       clearProgramsError,
       fetchAllPrograms,
       fetchPublicPrograms,
-      findOneProgram,
       createProgram,
       updateProgram,
       removeProgram,
@@ -209,7 +197,6 @@ export function ProgramProvider({ children }: { children: ReactNode }) {
       clearProgramsError,
       fetchAllPrograms,
       fetchPublicPrograms,
-      findOneProgram,
       createProgram,
       updateProgram,
       removeProgram,

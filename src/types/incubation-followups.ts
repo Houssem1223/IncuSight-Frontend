@@ -24,6 +24,21 @@ export type FollowUpObjective = {
   [key: string]: unknown;
 };
 
+// storagePath n'est jamais expose par l'API : c'est un detail de stockage serveur.
+export type FollowUpAttachment = {
+  id: string;
+  updateId: string;
+  originalName: string;
+  mimeType: string;
+  size: number;
+  createdAt?: string;
+  // Seule une STARTUP depose un livrable : c'est cote admin que savoir qui l'a
+  // depose renseigne. Le champ etait ecrit en base et expose par personne.
+  uploadedById?: string;
+  uploadedBy?: Pick<User, "id" | "firstName" | "lastName" | "email">;
+  [key: string]: unknown;
+};
+
 export type FollowUpUpdate = {
   id: string;
   followUpId: string;
@@ -37,6 +52,7 @@ export type FollowUpUpdate = {
   createdAt?: string;
   updatedAt?: string;
   author?: FollowUpAuthor;
+  attachments?: FollowUpAttachment[];
   [key: string]: unknown;
 };
 
@@ -90,3 +106,10 @@ export type CreateFollowUpUpdatePayload = {
   nextSteps?: string;
   progress?: number;
 };
+
+export type UpdateFollowUpPayload = Partial<{
+  status: FollowUpStatus;
+  phase: FollowUpPhase;
+  notes: string;
+  endDate: string;
+}>;

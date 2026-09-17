@@ -239,3 +239,77 @@ export function getAdminActivity(filters: DashboardFilters = {}): Promise<AdminA
 export function getAdminInsights(filters: DashboardFilters = {}): Promise<AdminInsightsResponse> {
   return apiFetch<AdminInsightsResponse>(withQuery("dashboard/admin/insights", filters));
 }
+
+// --- Vues personnelles (evaluateur / startup) -------------------------------
+// Scopees cote serveur a l'utilisateur connecte : aucun identifiant n'est passe
+// depuis le client, et le cache serveur inclut l'id de l'appelant dans sa cle.
+
+export type EvaluatorDeadline = {
+  applicationId: string;
+  startupName: string;
+  programTitle: string;
+  deadlineAt: string | null;
+  enRetard: boolean;
+};
+
+export type EvaluatorOverviewResponse = {
+  period: ResolvedPeriod;
+  charge: {
+    assignees: number;
+    aDemarrer: number;
+    enCours: number;
+    enRetard: number;
+  };
+  production: {
+    soumises: PeriodComparison;
+    scoreMoyenDonne: number;
+    recommandations: {
+      FAVORABLE: number;
+      RESERVED: number;
+      UNFAVORABLE: number;
+    };
+  };
+  prochainesEcheances: EvaluatorDeadline[];
+};
+
+export type StartupIncubationSummary = {
+  followUpId: string;
+  startupName: string;
+  programTitle: string;
+  status: string;
+  phase: string;
+  progress: number;
+  startDate: string;
+  objectifs: { total: number; termines: number; enRetard: number };
+  dernierPointAt: string | null;
+  pointEnRetard: boolean;
+};
+
+export type StartupOverviewResponse = {
+  period: ResolvedPeriod;
+  profils: { total: number; publies: number; brouillons: number };
+  candidatures: {
+    total: number;
+    enAttente: number;
+    acceptees: number;
+    rejetees: number;
+    deposeesSurLaPeriode: PeriodComparison;
+  };
+  incubation: StartupIncubationSummary[];
+};
+
+export function getEvaluatorOverview(
+  filters: DashboardFilters = {},
+): Promise<EvaluatorOverviewResponse> {
+  return apiFetch<EvaluatorOverviewResponse>(
+    withQuery("dashboard/evaluator/overview", filters),
+  );
+}
+
+export function getStartupOverview(
+  filters: DashboardFilters = {},
+): Promise<StartupOverviewResponse> {
+  return apiFetch<StartupOverviewResponse>(
+    withQuery("dashboard/startup/overview", filters),
+  );
+}

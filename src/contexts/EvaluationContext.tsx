@@ -20,7 +20,7 @@ import type {
   EvaluationUser,
 } from "@/src/types/evaluation";
 import type { Program } from "@/src/types/program";
-import type { Startup } from "@/src/types/startup";
+import type { Startup, StartupProfileStatus } from "@/src/types/startup";
 
 type UpdateEvaluationPayload = Partial<{
   innovationScore: number;
@@ -55,11 +55,11 @@ type EvaluationContextType = {
   clearEvaluationsError: () => void;
   clearEvaluationsCache: (applicationId?: string) => void;
   fetchMyEvaluations: () => Promise<Evaluation[]>;
-  fetchMyEvaluationById: (evaluationId: string) => Promise<Evaluation>;
   updateMyEvaluation: (evaluationId: string, payload: UpdateEvaluationPayload) => Promise<Evaluation>;
   submitMyEvaluation: (evaluationId: string, payload: SubmitEvaluationPayload) => Promise<Evaluation>;
   fetchEvaluationsByApplication: (applicationId: string) => Promise<Evaluation[]>;
   fetchApplicationSummary: (applicationId: string) => Promise<EvaluationSummary>;
+  reopenEvaluation: (evaluationId: string) => Promise<Evaluation>;
 };
 
 const EvaluationContext = createContext<EvaluationContextType | undefined>(undefined);
@@ -121,6 +121,10 @@ function toNullableNumber(value: unknown): number | null {
   return parsed === undefined ? null : parsed;
 }
 
+function toStartupProfileStatus(value: unknown): StartupProfileStatus | undefined {
+  return value === "DRAFT" || value === "PUBLISHED" ? value : undefined;
+}
+
 function toStartup(candidate: unknown): Startup | undefined {
   const record = toRecord(candidate);
 
@@ -143,7 +147,16 @@ function toStartup(candidate: unknown): Startup | undefined {
     sector: toString(record.sector),
     stage: toString(record.stage),
     website: toString(record.website),
-    status: toString(record.status),
+    status: toStartupProfileStatus(record.status),
+    // L'evaluateur a besoin de savoir qu'un pitch deck existe et sous quel nom le
+    // telecharger : sans ce champ, il note sans jamais voir le dossier.
+    pitchDeckOriginalName: toString(record.pitchDeckOriginalName),
+    pitchDeckMimeType: toString(record.pitchDeckMimeType),
+    pitchDeckUploadedAt: toString(record.pitchDeckUploadedAt),
+    // Meme raison : ce normaliseur supprime tout champ non liste explicitement.
+    logoOriginalName: toString(record.logoOriginalName),
+    linkedinUrl: toString(record.linkedinUrl),
+    deckUrl: toString(record.deckUrl),
     createdAt: toString(record.createdAt),
     updatedAt: toString(record.updatedAt),
   };
@@ -493,32 +506,6 @@ export function EvaluationProvider({ children }: { children: ReactNode }) {
     });
   }, [getRequiredToken, withLoading]);
 
-  const fetchMyEvaluationById = useCallback(
-    async (evaluationId: string) => {
-      return withLoading(async () => {
-        setEvaluationsError(null);
-        const authToken = getRequiredToken();
-
-        try {
-          const response = await apiFetch<unknown>(`evaluation/me/${evaluationId}`, {}, authToken);
-          const evaluation = extractSingleEvaluationFromResponse(response);
-
-          if (!evaluation) {
-            throw new Error("Unexpected evaluation payload");
-          }
-
-          setEvaluationInCaches(evaluation);
-          return evaluation;
-        } catch (error) {
-          const message = error instanceof Error ? error.message : "Failed to fetch evaluation";
-          setEvaluationsError(message);
-          throw error;
-        }
-      });
-    },
-    [getRequiredToken, setEvaluationInCaches, withLoading],
-  );
-
   const updateMyEvaluation = useCallback(
     async (evaluationId: string, payload: UpdateEvaluationPayload) => {
       return withLoading(async () => {
@@ -577,6 +564,38 @@ export function EvaluationProvider({ children }: { children: ReactNode }) {
           return evaluation;
         } catch (error) {
           const message = error instanceof Error ? error.message : "Failed to submit evaluation";
+          setEvaluationsError(message);
+          throw error;
+        }
+      });
+    },
+    [getRequiredToken, setEvaluationInCaches, withLoading],
+  );
+
+  const reopenEvaluation = useCallback(
+    async (evaluationId: string) => {
+      return withLoading(async () => {
+        setEvaluationsError(null);
+        const authToken = getRequiredToken();
+
+        try {
+          const response = await apiFetch<unknown>(
+            `evaluation/${evaluationId}/reopen`,
+            {
+              method: "PATCH",
+            },
+            authToken,
+          );
+          const evaluation = extractSingleEvaluationFromResponse(response);
+
+          if (!evaluation) {
+            throw new Error("Unexpected evaluation payload");
+          }
+
+          setEvaluationInCaches(evaluation);
+          return evaluation;
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "Failed to reopen evaluation";
           setEvaluationsError(message);
           throw error;
         }
@@ -661,11 +680,11 @@ export function EvaluationProvider({ children }: { children: ReactNode }) {
       clearEvaluationsError,
       clearEvaluationsCache,
       fetchMyEvaluations,
-      fetchMyEvaluationById,
       updateMyEvaluation,
       submitMyEvaluation,
       fetchEvaluationsByApplication,
       fetchApplicationSummary,
+      reopenEvaluation,
     }),
     [
       myEvaluations,
@@ -676,11 +695,11 @@ export function EvaluationProvider({ children }: { children: ReactNode }) {
       clearEvaluationsError,
       clearEvaluationsCache,
       fetchMyEvaluations,
-      fetchMyEvaluationById,
       updateMyEvaluation,
       submitMyEvaluation,
       fetchEvaluationsByApplication,
       fetchApplicationSummary,
+      reopenEvaluation,
     ],
   );
 

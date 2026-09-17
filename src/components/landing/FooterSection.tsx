@@ -1,6 +1,7 @@
 import { Rocket } from "lucide-react";
 
 const footerLinks = [
+  { label: "Nos startups", href: "/startups" },
   { label: "Mentions legales", href: "#" },
   { label: "Politique de confidentialite", href: "#" },
   { label: "Contact", href: "#contact" },

@@ -107,7 +107,7 @@ export default function OverviewKpiCards({ filters }: OverviewKpiCardsProps) {
 
   if (query.isPending) {
     return (
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <div className="h-36 animate-pulse rounded-2xl bg-slate-100" />
         <div className="h-36 animate-pulse rounded-2xl bg-slate-100" />
         <div className="h-36 animate-pulse rounded-2xl bg-slate-100" />
@@ -133,7 +133,7 @@ export default function OverviewKpiCards({ filters }: OverviewKpiCardsProps) {
   const delayValue = Math.round(evaluations.delaiMoyenJours.current * entryProgress * 10) / 10;
 
   return (
-    <div className="grid grid-cols-3 gap-4">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
       <Card className={cardShell}>
         <CardContent className="p-6">
           <div className="flex items-start justify-between">

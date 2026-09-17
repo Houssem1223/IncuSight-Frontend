@@ -6,10 +6,13 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
-import { apiFetch } from "@/src/lib/api";
+import { io } from "socket.io-client";
+import { apiFetch, apiFetchWithTotal, API_URL } from "@/src/lib/api";
+import { withPagination } from "@/src/lib/pagination";
 import { useAuth } from "@/src/contexts/AuthContext";
 import { useAutoRefresh } from "@/src/hooks/useAutoRefresh";
 import type { Notification } from "@/src/types/notification";
@@ -21,6 +24,10 @@ type NotificationContextType = {
   notificationsError: string | null;
   clearNotificationsError: () => void;
   fetchMyNotifications: () => Promise<Notification[]>;
+  /** Page suivante, ajoutee a la suite de la liste courante. */
+  loadMoreNotifications: () => Promise<Notification[]>;
+  hasMoreNotifications: boolean;
+  isLoadingMoreNotifications: boolean;
   fetchUnreadCount: () => Promise<number>;
   markNotificationAsRead: (id: string) => Promise<number>;
   markAllNotificationsAsRead: () => Promise<number>;
@@ -28,6 +35,14 @@ type NotificationContextType = {
 };
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
+
+/**
+ * `fetchMyNotifications` chargeait toute la table : la liste grossit sans borne
+ * et rien ne la limitait cote client. Le backend pagine deja (`page`/`limit` +
+ * en-tete `X-Total-Count`), mais une pagination par page s'accorde mal avec un
+ * flux alimente par WebSocket — d'ou un « charger plus » qui empile les pages.
+ */
+const NOTIFICATIONS_PAGE_SIZE = 20;
 
 function toRecord(candidate: unknown): Record<string, unknown> | null {
   if (!candidate || typeof candidate !== "object") {
@@ -248,6 +263,13 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const [unreadCount, setUnreadCount] = useState(0);
   const [pendingRequests, setPendingRequests] = useState(0);
   const [notificationsError, setNotificationsError] = useState<string | null>(null);
+  const [hasMoreNotifications, setHasMoreNotifications] = useState(false);
+  const [isLoadingMoreNotifications, setIsLoadingMoreNotifications] = useState(false);
+
+  // Refs et non state : ces deux valeurs sont lues dans des callbacks qui ne
+  // doivent pas etre recrees a chaque page chargee.
+  const hasMoreRef = useRef(false);
+  const loadedPagesRef = useRef(0);
 
   const isNotificationsLoading = pendingRequests > 0;
 
@@ -255,6 +277,9 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     setNotifications([]);
     setUnreadCount(0);
     setNotificationsError(null);
+    setHasMoreNotifications(false);
+    hasMoreRef.current = false;
+    loadedPagesRef.current = 0;
   }, [token]);
 
   const clearNotificationsError = useCallback(() => {
@@ -291,23 +316,61 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     (updater: (current: Notification[]) => Notification[]) => {
       setNotifications((current) => {
         const next = updater(current);
-        syncUnreadCount(next);
+
+        // Depuis le « charger plus », la liste n'est plus forcement complete :
+        // en deriver le total non lus le ferait mentir, exactement comme le
+        // piege documente plus bas pour le socket. Tant qu'il reste des pages,
+        // c'est le serveur qui fait foi (voir refreshUnreadCountIfPartial).
+        if (!hasMoreRef.current) {
+          syncUnreadCount(next);
+        }
+
         return next;
       });
     },
     [syncUnreadCount],
   );
 
+  /**
+   * Charge une page et met a jour l'existence d'une suite. `X-Total-Count` est
+   * renvoye par le backend ; s'il manque, on se rabat sur « la page est pleine,
+   * donc il y en a probablement une autre ».
+   */
+  const loadNotificationsPage = useCallback(
+    async (page: number) => {
+      const authToken = getRequiredToken();
+      const { data, total } = await apiFetchWithTotal<unknown>(
+        withPagination("notifications", { page, limit: NOTIFICATIONS_PAGE_SIZE }),
+        {},
+        authToken,
+      );
+      const list = extractNotificationsFromResponse(data);
+      const hasMore =
+        total !== null
+          ? page * NOTIFICATIONS_PAGE_SIZE < total
+          : list.length === NOTIFICATIONS_PAGE_SIZE;
+
+      loadedPagesRef.current = page;
+      hasMoreRef.current = hasMore;
+      setHasMoreNotifications(hasMore);
+
+      return list;
+    },
+    [getRequiredToken],
+  );
+
   const fetchMyNotifications = useCallback(async () => {
     return withLoading(async () => {
       setNotificationsError(null);
-      const authToken = getRequiredToken();
 
       try {
-        const response = await apiFetch<unknown>("notifications", {}, authToken);
-        const list = extractNotificationsFromResponse(response);
+        const list = await loadNotificationsPage(1);
         setNotifications(list);
-        syncUnreadCount(list);
+
+        if (!hasMoreRef.current) {
+          syncUnreadCount(list);
+        }
+
         return list;
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to fetch notifications";
@@ -315,7 +378,34 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         throw error;
       }
     });
-  }, [getRequiredToken, syncUnreadCount, withLoading]);
+  }, [loadNotificationsPage, syncUnreadCount, withLoading]);
+
+  const loadMoreNotifications = useCallback(async () => {
+    if (!hasMoreRef.current || isLoadingMoreNotifications) {
+      return [];
+    }
+
+    setIsLoadingMoreNotifications(true);
+    setNotificationsError(null);
+
+    try {
+      const list = await loadNotificationsPage(loadedPagesRef.current + 1);
+
+      // Une notification arrivee par socket entre-temps decale la fenetre du
+      // serveur : la page suivante peut donc rejouer un element deja affiche.
+      // `dedupeNotifications` garde la premiere occurrence, donc l'etat local
+      // (deja marque lu, par exemple) l'emporte sur la copie rechargee.
+      setNotifications((current) => dedupeNotifications([...current, ...list]));
+
+      return list;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to fetch notifications";
+      setNotificationsError(message);
+      throw error;
+    } finally {
+      setIsLoadingMoreNotifications(false);
+    }
+  }, [isLoadingMoreNotifications, loadNotificationsPage]);
 
   const fetchUnreadCount = useCallback(async () => {
     return withLoading(async () => {
@@ -340,10 +430,62 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     [fetchUnreadCount],
   );
 
+  /**
+   * Apres une mutation locale, le compteur n'est derivable que d'une liste
+   * complete. Quand des pages manquent, on redemande le compte au serveur.
+   */
+  const refreshUnreadCountIfPartial = useCallback(() => {
+    if (hasMoreRef.current) {
+      void fetchUnreadCount().catch(() => {});
+    }
+  }, [fetchUnreadCount]);
+
   useAutoRefresh(pollUnreadCount, {
     enabled: Boolean(token),
     intervalMs: 30000,
   });
+
+  // Complement temps reel du polling ci-dessus : le socket est recree a chaque
+  // changement de `token`, donc le refresh silencieux d'AuthContext (evenement
+  // AUTH_TOKEN_UPDATED_EVENT deja ecoute la-bas) rouvre automatiquement la
+  // connexion avec le nouveau token, sans ecouteur supplementaire ici.
+  //
+  // Volontairement PAS applyNotificationsUpdate() ici : cette page peut n'avoir
+  // jamais appele fetchMyNotifications() (seul fetchUnreadCount() tourne au
+  // montage), auquel cas `notifications` est encore vide. syncUnreadCount()
+  // recalculerait alors le total a partir de ce tableau partiel (1 element)
+  // et ecraserait le vrai compteur serveur au lieu de l'incrementer — reproduit
+  // et confirme en test (20 non lues affichees, puis 1 apres reception d'un
+  // event socket). On met a jour les deux etats separement : la liste pour la
+  // coherence si le panneau est ouvert plus tard, le compteur en incrementiel.
+  useEffect(() => {
+    if (!token) {
+      return;
+    }
+
+    const socket = io(`${API_URL ?? ""}/notifications`, {
+      auth: { token },
+      transports: ["websocket"],
+    });
+
+    socket.on("notification", (payload: unknown) => {
+      const incoming = toNotification(payload);
+
+      if (!incoming) {
+        return;
+      }
+
+      setNotifications((current) => upsertNotification(current, incoming));
+
+      if (incoming.isRead !== true) {
+        setUnreadCount((current) => current + 1);
+      }
+    });
+
+    return () => {
+      socket.close();
+    };
+  }, [token]);
 
   const markNotificationAsRead = useCallback(
     async (id: string) => {
@@ -380,6 +522,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
             );
           }
 
+          refreshUnreadCountIfPartial();
+
           return extractCountFromResponse(response);
         } catch (error) {
           const message = error instanceof Error ? error.message : "Failed to mark notification";
@@ -388,7 +532,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         }
       });
     },
-    [applyNotificationsUpdate, getRequiredToken, withLoading],
+    [applyNotificationsUpdate, getRequiredToken, refreshUnreadCountIfPartial, withLoading],
   );
 
   const markAllNotificationsAsRead = useCallback(async () => {
@@ -443,6 +587,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
             current.filter((notification) => notification.id !== id),
           );
 
+          refreshUnreadCountIfPartial();
+
           return extractCountFromResponse(response);
         } catch (error) {
           const message = error instanceof Error ? error.message : "Failed to delete notification";
@@ -451,7 +597,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         }
       });
     },
-    [applyNotificationsUpdate, getRequiredToken, withLoading],
+    [applyNotificationsUpdate, getRequiredToken, refreshUnreadCountIfPartial, withLoading],
   );
 
   const value = useMemo(
@@ -462,6 +608,9 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       notificationsError,
       clearNotificationsError,
       fetchMyNotifications,
+      loadMoreNotifications,
+      hasMoreNotifications,
+      isLoadingMoreNotifications,
       fetchUnreadCount,
       markNotificationAsRead,
       markAllNotificationsAsRead,
@@ -474,6 +623,9 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       notificationsError,
       clearNotificationsError,
       fetchMyNotifications,
+      loadMoreNotifications,
+      hasMoreNotifications,
+      isLoadingMoreNotifications,
       fetchUnreadCount,
       markNotificationAsRead,
       markAllNotificationsAsRead,

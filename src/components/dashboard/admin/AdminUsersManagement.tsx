@@ -5,6 +5,7 @@ import RoleGuard from "@/src/components/auth/Roleguard";
 import ConfirmDialog from "@/src/components/dashboard/ConfirmDialog";
 import { useAuth } from "@/src/contexts/AuthContext";
 import { useUsers } from "@/src/contexts/UserContext";
+import { DEFAULT_PAGE_SIZE, getPageCount } from "@/src/lib/pagination";
 import { useAutoRefresh } from "@/src/hooks/useAutoRefresh";
 import type { User } from "@/src/types/user";
 import AdminUsersTable from "./users/AdminUsersTable";
@@ -29,6 +30,7 @@ export default function AdminUsersManagement() {
   const { isAuthReady, isAuthenticated } = useAuth();
   const {
     users,
+    usersTotal,
     isUsersLoading,
     usersError,
     fetchAllUsers,
@@ -50,15 +52,17 @@ export default function AdminUsersManagement() {
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [page, setPage] = useState(1);
+  const pageCount = getPageCount(usersTotal, DEFAULT_PAGE_SIZE);
 
   const refreshUsers = useCallback(async () => {
     clearUsersError();
 
     try {
-      await fetchAllUsers();
+      await fetchAllUsers({ page, limit: DEFAULT_PAGE_SIZE });
     } catch {
     }
-  }, [clearUsersError, fetchAllUsers]);
+  }, [clearUsersError, fetchAllUsers, page]);
 
   const sortedUsers = useMemo(
     () => [...users].sort((a, b) => a.email.localeCompare(b.email)),
@@ -291,6 +295,37 @@ export default function AdminUsersManagement() {
           statusLoadingUserId={statusLoadingUserId}
           users={filteredUsers}
         />
+
+        {pageCount > 1 && (
+          <nav
+            aria-label="Pagination des utilisateurs"
+            className="mt-6 flex flex-wrap items-center justify-between gap-3"
+          >
+            <p className="text-sm text-foreground-muted">
+              Page {page} sur {pageCount}
+              {usersTotal !== null ? ` — ${usersTotal} utilisateurs` : ""}
+            </p>
+
+            <div className="flex items-center gap-2">
+              <button
+                className="dashboard-btn rounded-xl border border-border bg-white px-3 py-1.5 text-xs font-medium text-foreground hover:border-brand/35 disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={page <= 1 || isUsersLoading}
+                onClick={() => setPage((current) => Math.max(1, current - 1))}
+                type="button"
+              >
+                Precedent
+              </button>
+              <button
+                className="dashboard-btn rounded-xl border border-border bg-white px-3 py-1.5 text-xs font-medium text-foreground hover:border-brand/35 disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={page >= pageCount || isUsersLoading}
+                onClick={() => setPage((current) => Math.min(pageCount, current + 1))}
+                type="button"
+              >
+                Suivant
+              </button>
+            </div>
+          </nav>
+        )}
       </section>
 
       <EditUserModal

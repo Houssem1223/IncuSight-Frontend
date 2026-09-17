@@ -55,27 +55,10 @@ type TokenUpdatedEventDetail = {
   refreshToken?: string;
 };
 
-async function fetchProfileWithFallback(token: string): Promise<User> {
-  const profileEndpoints = ["users/MyProfile", "users/my-profile", "users/me"];
-  let lastError: unknown = null;
-
-  for (const endpoint of profileEndpoints) {
-    try {
-      return await apiFetch<User>(endpoint, {}, token);
-    } catch (error) {
-      lastError = error;
-
-      if (!(error instanceof ApiError) || error.status !== 404) {
-        throw error;
-      }
-    }
-  }
-
-  if (lastError instanceof Error) {
-    throw lastError;
-  }
-
-  throw new Error("Unable to load user profile");
+// Un seul chemin. La route a ete normalisee en `users/me` (V3-10) ; les variantes
+// tentees auparavant par un fallback n'ont jamais existe cote backend.
+function fetchProfile(token: string): Promise<User> {
+  return apiFetch<User>("users/me", {}, token);
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -97,7 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!token) return;
 
     try {
-      const profile = await fetchProfileWithFallback(token);
+      const profile = await fetchProfile(token);
       setProfileError(null);
       setUser(profile);
     } catch (error) {
@@ -123,7 +106,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSessionExpired(false);
 
     try {
-      const profile = await fetchProfileWithFallback(data.token);
+      const profile = await fetchProfile(data.token);
       setUser(profile);
     } catch (error) {
       if (getAccessToken() && !(error instanceof ApiError && error.status === 409)) {

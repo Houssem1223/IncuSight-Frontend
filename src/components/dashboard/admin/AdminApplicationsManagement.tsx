@@ -5,8 +5,10 @@ import { useCallback, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import RoleGuard from "@/src/components/auth/Roleguard";
 import { useApplications } from "@/src/contexts/ApplicationContext";
+import { downloadApplicationsCsv, downloadDecisionReport } from "@/src/lib/reports";
 import { useAuth } from "@/src/contexts/AuthContext";
 import { useAutoRefresh } from "@/src/hooks/useAutoRefresh";
+import { DEFAULT_PAGE_SIZE, getPageCount } from "@/src/lib/pagination";
 import type { Application } from "@/src/types/application";
 import {
   getProgramLabel,
@@ -21,6 +23,7 @@ import {
 import ApplicationsKanban from "./applications/ApplicationsKanban";
 import ApplicationsTable from "./applications/ApplicationsTable";
 import DecisionModal, { type StatusUpdateConfirmation } from "./applications/DecisionModal";
+import ReviseDecisionModal from "./applications/ReviseDecisionModal";
 
 const finalDecisionStatuses = ["ACCEPTED", "REJECTED"] as const;
 
@@ -34,14 +37,16 @@ function getInitialSearchTerm(searchParams: URLSearchParams): string {
 }
 
 export default function AdminApplicationsManagement() {
-  const { isAuthReady, isAuthenticated } = useAuth();
+  const { isAuthReady, isAuthenticated, token } = useAuth();
   const {
     applications,
     isApplicationsLoading,
     applicationsError,
+    applicationsTotal,
     clearApplicationsError,
     fetchAllApplications,
     makeDecision,
+    reviseDecision,
   } = useApplications();
   const searchParams = useSearchParams();
 
@@ -50,10 +55,15 @@ export default function AdminApplicationsManagement() {
     getInitialStatusFilter(searchParams),
   );
   const [viewMode, setViewMode] = useState<ViewMode>("TABLE");
+  const [page, setPage] = useState(1);
   const [statusDraftByApplicationId, setStatusDraftByApplicationId] = useState<
     Record<string, string>
   >({});
   const [updatingApplicationId, setUpdatingApplicationId] = useState<string | null>(null);
+  const [exportingApplicationId, setExportingApplicationId] = useState<string | null>(null);
+  const [isExportingCsv, setIsExportingCsv] = useState(false);
+  const [applicationToRevise, setApplicationToRevise] = useState<Application | null>(null);
+  const [isRevising, setIsRevising] = useState(false);
   const [statusUpdateConfirmation, setStatusUpdateConfirmation] =
     useState<StatusUpdateConfirmation | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
@@ -64,14 +74,84 @@ export default function AdminApplicationsManagement() {
     setActionError(null);
   };
 
+  // L'export reprend le filtre de statut affiche : ce qui est exporte correspond
+  // a ce que l'utilisateur a sous les yeux. La recherche texte reste cote client,
+  // le backend ne l'expose pas comme filtre.
+  const handleExportCsv = async () => {
+    if (!token) {
+      return;
+    }
+
+    resetActionFeedback();
+    setIsExportingCsv(true);
+
+    try {
+      await downloadApplicationsCsv(token, { status: statusFilter });
+    } catch (error) {
+      setActionError(
+        error instanceof Error ? error.message : "Impossible d'exporter les candidatures.",
+      );
+    } finally {
+      setIsExportingCsv(false);
+    }
+  };
+
+  const handleReviseDecision = async (status: string, reason: string) => {
+    if (!applicationToRevise) {
+      return;
+    }
+
+    resetActionFeedback();
+    setIsRevising(true);
+
+    try {
+      await reviseDecision(applicationToRevise.id, { status, reason });
+      setApplicationToRevise(null);
+      setActionMessage("Decision revisee et changement historise.");
+    } catch (error) {
+      setActionError(
+        error instanceof Error ? error.message : "Impossible de reviser la decision.",
+      );
+    } finally {
+      setIsRevising(false);
+    }
+  };
+
+  const handleExportDecision = async (application: Application) => {
+    if (!token) {
+      return;
+    }
+
+    resetActionFeedback();
+    setExportingApplicationId(application.id);
+
+    try {
+      await downloadDecisionReport(application.id, token);
+    } catch (error) {
+      setActionError(
+        error instanceof Error
+          ? error.message
+          : "Impossible de generer la fiche de decision.",
+      );
+    } finally {
+      setExportingApplicationId(null);
+    }
+  };
+
+  // Statut et pagination partent au serveur ensemble : filtrer apres coup une page
+  // deja decoupee ne montrerait que les correspondances de cette page.
   const refreshApplications = useCallback(async () => {
     clearApplicationsError();
 
     try {
-      await fetchAllApplications();
+      await fetchAllApplications({
+        page,
+        limit: DEFAULT_PAGE_SIZE,
+        ...(statusFilter !== "ALL" ? { status: statusFilter } : {}),
+      });
     } catch {
     }
-  }, [clearApplicationsError, fetchAllApplications]);
+  }, [clearApplicationsError, fetchAllApplications, page, statusFilter]);
 
   useAutoRefresh(refreshApplications, {
     enabled: isAuthReady && isAuthenticated,
@@ -91,43 +171,23 @@ export default function AdminApplicationsManagement() {
     [applications],
   );
 
-  const statusCounts = useMemo(() => {
-    const counts: Record<StatusFilter, number> = {
-      ALL: applications.length,
-      PENDING: 0,
-      ACCEPTED: 0,
-      REJECTED: 0,
-    };
+  const pageCount = getPageCount(applicationsTotal, DEFAULT_PAGE_SIZE);
 
-    for (const application of applications) {
-      const status = normalizeStatus(application.status);
-
-      if (status === "PENDING" || status === "ACCEPTED" || status === "REJECTED") {
-        counts[status] += 1;
-      }
-    }
-
-    return counts;
-  }, [applications]);
-
+  // Le statut est filtre par le serveur. La recherche texte, elle, n'a pas
+  // d'equivalent backend : elle reste locale et ne porte donc que sur la page
+  // affichee — c'est dit explicitement dans le libelle du champ.
   const filteredApplications = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();
+
+    if (!query) {
+      return sortedApplications;
+    }
 
     return sortedApplications.filter((application) => {
       const program = getProgramLabel(application).toLowerCase();
       const startup = getStartupLabel(application).toLowerCase();
       const status = normalizeStatus(application.status).toLowerCase();
       const motivation = (application.motivationLetter || "").toLowerCase();
-      const matchesStatus =
-        statusFilter === "ALL" || normalizeStatus(application.status) === statusFilter;
-
-      if (!matchesStatus) {
-        return false;
-      }
-
-      if (!query) {
-        return true;
-      }
 
       return (
         program.includes(query) ||
@@ -137,7 +197,7 @@ export default function AdminApplicationsManagement() {
         application.id.toLowerCase().includes(query)
       );
     });
-  }, [searchTerm, sortedApplications, statusFilter]);
+  }, [searchTerm, sortedApplications]);
 
   const applicationsByStatus = useMemo(() => {
     const groups: Record<ApplicationStatusColumn, Application[]> = {
@@ -277,13 +337,13 @@ export default function AdminApplicationsManagement() {
             <p className="mt-2 text-sm text-foreground-muted">
               {searchTerm.trim() || statusFilter !== "ALL"
                 ? `${filteredApplications.length} sur ${applications.length} candidatures affichees`
-                : `Total de candidatures: ${applications.length}`}
+                : `Total de candidatures: ${applicationsTotal ?? applications.length}`}
             </p>
           </div>
 
           <div className="w-full max-w-sm">
             <label className="mb-2 block text-xs font-medium uppercase tracking-[0.14em] text-foreground-muted">
-              Recherche
+              Recherche dans cette page
             </label>
             <input
               className="w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-foreground outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20"
@@ -308,10 +368,18 @@ export default function AdminApplicationsManagement() {
                       : "border-border bg-white text-foreground hover:border-brand/35 hover:text-brand-strong"
                   }`}
                   key={option}
-                  onClick={() => setStatusFilter(option)}
+                  onClick={() => {
+                    setStatusFilter(option);
+                    // Le filtre part au serveur : rester sur la page 5 d'un autre
+                    // filtre afficherait une page vide.
+                    setPage(1);
+                  }}
                   type="button"
                 >
-                  {option} ({statusCounts[option]})
+                  {/* Le compte n'est connu que pour le filtre actif : le serveur ne
+                      renvoie que les lignes correspondantes. */}
+                  {option}
+                  {isActive && applicationsTotal !== null ? ` (${applicationsTotal})` : ""}
                 </button>
               );
             })}
@@ -337,6 +405,15 @@ export default function AdminApplicationsManagement() {
               );
             })}
           </div>
+
+          <button
+            className="dashboard-btn rounded-xl border border-border bg-white px-3 py-1.5 text-xs font-medium text-foreground hover:border-brand/35 hover:text-brand-strong disabled:cursor-not-allowed disabled:opacity-70"
+            disabled={isExportingCsv}
+            onClick={() => void handleExportCsv()}
+            type="button"
+          >
+            {isExportingCsv ? "Export..." : "Exporter en CSV"}
+          </button>
         </div>
 
         {actionMessage && (
@@ -368,7 +445,10 @@ export default function AdminApplicationsManagement() {
         {!isApplicationsLoading && !applicationsError && viewMode === "TABLE" && (
           <ApplicationsTable
             applications={filteredApplications}
+            exportingApplicationId={exportingApplicationId}
             hasSearchTerm={Boolean(searchTerm.trim())}
+            onExportDecision={(application) => void handleExportDecision(application)}
+            onReviseDecision={setApplicationToRevise}
             onStatusDraftChange={handleStatusDraftChange}
             onStatusUpdate={handleStatusUpdate}
             statusDraftByApplicationId={statusDraftByApplicationId}
@@ -386,12 +466,57 @@ export default function AdminApplicationsManagement() {
           />
         )}
 
+        {pageCount > 1 && (
+          <nav
+            aria-label="Pagination des candidatures"
+            className="mt-6 flex flex-wrap items-center justify-between gap-3"
+          >
+            <p className="text-sm text-foreground-muted">
+              Page {page} sur {pageCount}
+              {applicationsTotal !== null ? ` — ${applicationsTotal} candidatures` : ""}
+            </p>
+
+            <div className="flex items-center gap-2">
+              <button
+                className="dashboard-btn rounded-xl border border-border bg-white px-3 py-1.5 text-xs font-medium text-foreground hover:border-brand/35 disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={page <= 1 || isApplicationsLoading}
+                onClick={() => setPage((current) => Math.max(1, current - 1))}
+                type="button"
+              >
+                Precedent
+              </button>
+              <button
+                className="dashboard-btn rounded-xl border border-border bg-white px-3 py-1.5 text-xs font-medium text-foreground hover:border-brand/35 disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={page >= pageCount || isApplicationsLoading}
+                onClick={() => setPage((current) => Math.min(pageCount, current + 1))}
+                type="button"
+              >
+                Suivant
+              </button>
+            </div>
+          </nav>
+        )}
+
         <DecisionModal
           confirmation={statusUpdateConfirmation}
           isSubmitting={isDecisionSubmitting}
           onClose={cancelStatusUpdate}
           onCommentChange={handleDecisionCommentChange}
           onSubmit={submitDecisionForm}
+        />
+
+        <ReviseDecisionModal
+          application={applicationToRevise}
+          isSubmitting={isRevising}
+          // key : remonte le formulaire a chaque candidature, sinon le motif saisi
+          // pour l'une resterait affiche en ouvrant la suivante.
+          key={applicationToRevise?.id ?? "none"}
+          onCancel={() => {
+            if (!isRevising) {
+              setApplicationToRevise(null);
+            }
+          }}
+          onConfirm={(status, reason) => void handleReviseDecision(status, reason)}
         />
       </section>
     </RoleGuard>

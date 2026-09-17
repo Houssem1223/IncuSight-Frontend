@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import RoleGuard from "@/src/components/auth/Roleguard";
 import ConfirmDialog from "@/src/components/dashboard/ConfirmDialog";
+import StartupDashboardOverview from "@/src/components/dashboard/startup/StartupDashboardOverview";
 import { useApplications } from "@/src/contexts/ApplicationContext";
 import { useAuth } from "@/src/contexts/AuthContext";
 import { usePrograms } from "@/src/contexts/ProgramContext";
@@ -122,6 +123,14 @@ export default function StartupDashboardPage() {
 
   const myStartupIds = useMemo(() => new Set(myStartups.map((startup) => startup.id)), [myStartups]);
 
+  // Un brouillon ne peut pas candidater (le backend le refuse en 400) : on ne
+  // le propose meme pas dans le choix, plutot que de laisser l'utilisateur se
+  // heurter a l'erreur.
+  const publishableStartups = useMemo(
+    () => myStartups.filter((startup) => startup.status === "PUBLISHED"),
+    [myStartups],
+  );
+
   const sortedMyApplications = useMemo(
     () =>
       myApplications
@@ -175,11 +184,22 @@ export default function StartupDashboardPage() {
   const handleApply = (programId: string) => {
     resetActionFeedback();
 
-    const startupId = selectedStartupByProgram[programId] || myStartups[0]?.id;
+    const selectedStartupId = selectedStartupByProgram[programId] || publishableStartups[0]?.id;
     const motivationLetter = (motivationByProgram[programId] || "").trim();
 
+    if (!selectedStartupId) {
+      setActionError("You need at least one published startup before applying.");
+      return;
+    }
+
+    // Garde-fou : un brouillon ne peut pas etre soumis, meme si l'etat local
+    // contenait encore une ancienne selection non publiee.
+    const startupId = publishableStartups.some((startup) => startup.id === selectedStartupId)
+      ? selectedStartupId
+      : undefined;
+
     if (!startupId) {
-      setActionError("You need at least one startup before applying.");
+      setActionError("Ce profil startup est encore un brouillon. Publiez-le avant de candidater.");
       return;
     }
 
@@ -317,6 +337,10 @@ export default function StartupDashboardPage() {
           Gerer mes startups
         </Link>
 
+        <div className="mt-6">
+          <StartupDashboardOverview />
+        </div>
+
         <article className="dashboard-soft-block mt-6 p-4">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
@@ -359,7 +383,8 @@ export default function StartupDashboardPage() {
                 const isAfterClosing = hasCloseDate && now > closeAt;
                 const isOpen = program.isOpen && !isBeforeOpening && !isAfterClosing;
                 const existingApplication = applicationByProgramId.get(program.id);
-                const startupId = selectedStartupByProgram[program.id] || myStartups[0]?.id || "";
+                const startupId =
+                  selectedStartupByProgram[program.id] || publishableStartups[0]?.id || "";
                 const motivationValue = motivationByProgram[program.id] || "";
                 const status = normalizeStatus(existingApplication?.status);
 
@@ -403,7 +428,7 @@ export default function StartupDashboardPage() {
                         <span className="inline-flex rounded-xl border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-medium text-sky-700">
                           Les candidatures seront ouvertes le {formatDateTime(program.openDate)}.
                         </span>
-                      ) : isOpen && myStartups.length > 0 ? (
+                      ) : isOpen && publishableStartups.length > 0 ? (
                         <div className="grid w-full gap-2 sm:max-w-xl">
                           <textarea
                             className="min-h-24 rounded-xl border border-border bg-white px-3 py-2 text-sm text-foreground outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20"
@@ -428,7 +453,7 @@ export default function StartupDashboardPage() {
                               }
                               value={startupId}
                             >
-                              {myStartups.map((startup) => (
+                              {publishableStartups.map((startup) => (
                                 <option key={startup.id} value={startup.id}>
                                   {startup.startupName}
                                 </option>
@@ -449,7 +474,9 @@ export default function StartupDashboardPage() {
                       ) : isOpen ? (
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="inline-flex rounded-xl border border-border bg-slate-50 px-4 py-2 text-sm font-medium text-foreground-muted">
-                            Cree une startup d&apos;abord
+                            {myStartups.length === 0
+                              ? "Cree une startup d'abord"
+                              : "Publiez une startup avant de candidater"}
                           </span>
                           <Link
                             className="dashboard-btn inline-flex rounded-xl border border-border bg-white px-4 py-2 text-sm font-medium text-foreground hover:border-brand/35 hover:text-brand-strong"

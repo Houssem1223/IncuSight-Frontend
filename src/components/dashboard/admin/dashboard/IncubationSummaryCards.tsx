@@ -67,7 +67,7 @@ export default function IncubationSummaryCards({ filters }: IncubationSummaryCar
         </div>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div
             className={`rounded-xl border p-4 ${darkMode ? "border-emerald-500/30 bg-emerald-500/10" : "border-emerald-200 bg-gradient-to-br from-emerald-50 to-teal-50"}`}
           >

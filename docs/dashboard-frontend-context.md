@@ -8,15 +8,17 @@
 
 ## 1. Pages dashboard par rôle
 
-- **Admin** — [`src/app/dashboard/(protected)/admin/page.tsx`](../src/app/dashboard/(protected)/admin/page.tsx) :
-  page monolithique, quasiment tout le contenu (KPIs, pipeline, top startups, activité,
-  répartition des rôles, performance) est codé en dur directement dans ce fichier (~530
-  lignes). Utilise `RoleGuard`, `Badge`/`Card*` (`src/components/ui/`), et
-  `useDashboardTheme` (`src/contexts/DashboardThemeContext.tsx`).
-- **Évaluateur** — [`src/app/dashboard/(protected)/evaluateur/page.tsx`](<../src/app/dashboard/(protected)/evaluateur/page.tsx>)
-  délègue à [`EvaluatorAssignedApplications.tsx`](../src/components/dashboard/evaluateur/EvaluatorAssignedApplications.tsx),
-  qui calcule ses KPI par `useMemo` à partir de `useApplicationEvaluators` /
-  `useProgramEvaluators` — **100% dynamique, aucune valeur factice**.
+> ⚠️ **Sections 1, 2 et 4 réécrites** : elles décrivaient l'état d'avant le câblage
+> du dashboard. Le monolithe de valeurs en dur n'existe plus.
+
+- **Admin** — [`src/app/dashboard/(protected)/admin/page.tsx`](../src/app/dashboard/(protected)/admin/page.tsx)
+  ne fait plus que déléguer à `AdminDashboardOverview`, qui compose une dizaine de
+  cartes autonomes (`dashboard/*`), chacune branchée sur son endpoint via TanStack
+  Query avec ses propres états de chargement/erreur/vide.
+- **Évaluateur** — [`evaluateur/page.tsx`](<../src/app/dashboard/(protected)/evaluateur/page.tsx>)
+  rend `EvaluatorDashboardOverview` (charge, échéances, production), branché sur
+  `GET dashboard/evaluator/overview`. Il rendait auparavant exactement le même
+  composant que `/assignments` : deux entrées de navigation, une seule page.
 - **Startup** — [`src/app/dashboard/(protected)/startup/page.tsx`](<../src/app/dashboard/(protected)/startup/page.tsx>) :
   page inline pilotée par `ApplicationContext`/`ProgramContext`/`StartupContext` —
   **100% dynamique, aucune valeur factice**.
@@ -82,9 +84,16 @@ Pièges rencontrés, utiles si tu ajoutes un autre graphique :
   le `role="application"` ne peut donc pas recevoir de nom accessible directement. On
   nomme la région englobante (`<figure aria-labelledby aria-describedby>`).
 
-## 4. Data fetching : Context + fetch custom, pas de TanStack Query/SWR
+## 4. Data fetching : deux patterns coexistent
 
-`package.json` ne contient ni `@tanstack/react-query` ni `swr`. Le pattern réel :
+**TanStack Query** (`@tanstack/react-query`) est installé et utilisé par tous les
+blocs de dashboard des trois rôles. Le `QueryClientProvider` est monté dans
+`src/app/dashboard/(protected)/layout.tsx` (`DashboardQueryProvider`), donc
+disponible partout sous `/dashboard` — il ne vivait auparavant que dans le layout
+admin, ce qui faisait échouer à l'exécution toute page évaluateur ou startup
+appelant `useQuery`. `staleTime` 30 s, `refetchOnWindowFocus` désactivé.
+
+Les **contexts React** restent le pattern pour tout le reste (CRUD métier) :
 
 - [`src/lib/api.ts`](../src/lib/api.ts) : wrapper central `apiFetch<T>()` (ligne 402),
   gère le header `Authorization`, le refresh automatique de token sur 401
@@ -97,10 +106,12 @@ Pièges rencontrés, utiles si tu ajoutes un autre graphique :
   `useEffect` par les composants consommateurs. Pas de revalidation automatique, pas de
   `staleTime`/`keepPreviousData` — un refetch doit être déclenché explicitement.
 
-→ **Gap à trancher avant la Phase 2** : le prompt de mission suppose une lib de
-data-fetching déjà en place (`staleTime`, `keepPreviousData`, query keys structurées) —
-elle n'existe pas. Introduire TanStack Query (candidat naturel, cité par le prompt) ou
-étendre le pattern Context existant avec ces fonctionnalités à la main.
+⚠️ **Les normaliseurs de ces contexts suppriment silencieusement tout champ non
+listé explicitement.** Ajouter un champ côté backend ne suffit donc pas à le faire
+apparaître dans l'UI — piège rencontré trois fois pendant l'exécution du backlog.
+
+⚠️ `apiFetch()` ne rend que le corps. Pour lire l'en-tête `X-Total-Count` des listes
+paginées, utiliser `apiFetchWithTotal()`, qui renvoie `{ data, total }`.
 
 ## 5. Thème et design tokens
 

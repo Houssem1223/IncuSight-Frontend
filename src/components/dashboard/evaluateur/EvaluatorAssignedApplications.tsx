@@ -253,6 +253,14 @@ export default function EvaluatorAssignedApplications() {
                         const startupName = application.startup?.startupName || application.startupId;
                         const myEvaluation = getMyEvaluationRecord(application);
                         const assignedAt = readStringField(application, "assignedAt");
+                        const deadlineAt = readStringField(application, "deadlineAt");
+                        // Une echeance depassee n'a plus de sens si l'evaluation est
+                        // deja soumise : on ne signale le retard que tant qu'il reste
+                        // quelque chose a rendre.
+                        const isOverdue =
+                          Boolean(deadlineAt) &&
+                          reviewStatus !== "SUBMITTED" &&
+                          new Date(deadlineAt as string).getTime() < Date.now();
                         const scoreValue = myEvaluation ? myEvaluation["overallScore"] : undefined;
                         const recommendation = myEvaluation
                           ? readStringField(myEvaluation, "recommendation")
@@ -271,6 +279,16 @@ export default function EvaluatorAssignedApplications() {
                                 {assignedAt && (
                                   <p className="mt-1 text-xs text-foreground-muted">
                                     Assigne le: {formatDate(assignedAt)}
+                                  </p>
+                                )}
+                                {deadlineAt && (
+                                  <p
+                                    className={`mt-1 text-xs font-medium ${
+                                      isOverdue ? "text-red-700" : "text-foreground-muted"
+                                    }`}
+                                  >
+                                    Echeance: {formatDate(deadlineAt)}
+                                    {isOverdue ? " (depassee)" : ""}
                                   </p>
                                 )}
                               </div>

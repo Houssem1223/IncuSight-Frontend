@@ -180,10 +180,27 @@ Le rôle le plus riche fonctionnellement — vue d'ensemble complète de l'incub
 - **BlacklistedToken**, **EmailToken** — support technique de l'auth (révocation
   JWT, tokens de vérification/reset à usage unique avec expiration).
 
-⚠️ Écart connu : le type frontend `Startup` (`src/types/startup.ts`) a un champ
-`status?` qui **n'existe pas** dans `StartupProfile` côté Prisma — cohérent avec
-l'usage généralisé de `[key: string]: unknown` en fin de quasiment tous les types
-frontend (typage défensif vis-à-vis d'un backend qui évolue).
+⚠️ **`StartupProfile` a beaucoup grossi** depuis la première rédaction de ce
+document. Champs à connaître, en plus de ceux listés ci-dessus :
+
+- `status` (`StartupProfileStatus` : `DRAFT | PUBLISHED`) — un profil naît en
+  brouillon et ne peut candidater qu'une fois publié. Le type frontend `Startup`
+  correspond exactement ; l'ancien « écart `status` » de ce document n'existe plus.
+- Pitch deck : `pitchDeckPath`, `pitchDeckOriginalName`, `pitchDeckMimeType`,
+  `pitchDeckSize`, `pitchDeckUploadedAt`.
+- Logo : `logoPath`, `logoOriginalName`, `logoMimeType`, `logoSize`,
+  `logoUploadedAt`.
+- Liens publics : `linkedinUrl`, `deckUrl`.
+- `isPublicShowcase` — opt-in explicite à la vitrine publique (`/startups`).
+
+⚠️ `pitchDeckPath` et `logoPath` sont sous **omit global Prisma**
+(`PrismaService`) : ils ne sortent jamais de l'API, y compris dans les relations
+imbriquées. Les méthodes qui ont réellement besoin du chemin le redemandent par un
+`select` explicite — c'est un piège à connaître avant d'écrire une suppression de
+fichier (cf. `startup.service.ts#removeMine`).
+
+⚠️ `StartupProfile` n'a **ni `createdAt` ni `updatedAt`**, contrairement aux autres
+modèles.
 
 ## 5. Modules backend (`IncuSight-Backend/src/modules/`)
 
@@ -261,33 +278,39 @@ mentionné en §4).
 ## 8. Tests
 
 - **Frontend** (`tests/`, 7 fichiers `.mjs` + 1 loader utilitaire) — tests unitaires
-  légers via un runner Node natif custom (`npm test`), concentrés sur la logique
-  d'auth/session : `api-refresh`, `auth-routing`, `auth-validation`,
-  `email-verification`, `password-recovery`, `resend-verification`, `signup`. Rien
-  sur les contexts métier (Application/Program/...) ni sur les composants UI.
-- **Backend** — 34 fichiers `*.spec.ts` (Jest, un `.controller.spec.ts` +
-  `.service.spec.ts` par module) + `test/app.e2e-spec.ts` et
+  légers via un runner Node natif custom (`npm test`), 8 fichiers, 68 tests.
+  Auth/session : `api-refresh`, `auth-routing`, `auth-validation`,
+  `email-verification`, `password-recovery`, `resend-verification`, `signup`.
+  Règles métier : `business-rules` (bornes de notation, politique de mot de passe,
+  construction des query strings paginées, routage des notifications par rôle).
+  ⚠️ Le loader ne transpile que les fichiers `.ts` — un test ne peut donc pas
+  importer un `.tsx`. C'est pourquoi les règles pures des écrans vivent dans
+  `src/lib/*.ts` (`evaluation-scores`, `password-policy`, `application-query`,
+  `pagination`) : les y laisser inline les rendrait intestables.
+  Toujours rien sur les contexts React eux-mêmes ni sur les composants UI.
+- **Backend** — 39 fichiers `*.spec.ts`, 203 tests (Jest, un `.controller.spec.ts`
+  + `.service.spec.ts` par module) + `test/app.e2e-spec.ts` et
   `test/dashboard.e2e-spec.ts` (e2e). Le module `dashboard` est le plus testé
   (scoring, séries temporelles, périodes, insights, cache).
+  ⚠️ `npm run lint` du backend **ne fonctionne pas** : la configuration est au
+  format `.eslintrc.js` alors qu'ESLint 10 exige `eslint.config.js`. À migrer.
 
 ## 9. État d'avancement
 
 - Aucun `TODO`/`FIXME` de développeur significatif dans le code métier des deux
   dépôts (seules occurrences : la valeur d'enum légitime `FollowUpObjectiveStatus.TODO`).
-- Point d'inachèvement explicite et documenté : 2 endpoints du module `dashboard`
-  (`evaluator/overview`, `startup/overview`) renvoient volontairement **501 Not
-  Implemented** plutôt qu'une fausse donnée — prévu pour une Phase 4 future, voir
-  `dashboard-backend-api-contract.md`.
-- Le module **dashboard admin** est la partie la plus avancée et la mieux
-  documentée du projet (Phase 2 terminée : câblage réel sur 7/8 endpoints,
-  TanStack Query, filtres pilotés par l'URL ; Phase 3 en cours : premier graphique
-  Recharts). Voir les 3 documents `dashboard-*.md` dans ce dossier.
-- Les dashboards **évaluateur** et **startup** sont déjà 100% dynamiques (aucune
-  donnée factice), mais n'ont pas encore de document de contexte dédié — c'est le
-  principal point aveugle documentaire identifié à ce jour (mentionné comme
-  prochaine étape dans `IncuSight-Backend/CLAUDE.md`).
-- `Startup.status` (frontend) sans équivalent dans `StartupProfile` (Prisma) — à
-  vérifier si cela reflète un champ prévu mais pas encore migré côté backend.
+- **Plus aucun endpoint ne renvoie 501.** `dashboard/evaluator/overview` et
+  `dashboard/startup/overview` sont implémentés et câblés.
+- Le module **dashboard admin** est entièrement branché sur des données réelles
+  (8 endpoints, TanStack Query, filtres pilotés par l'URL, série temporelle
+  Recharts, insights avec drill-down). Aucune donnée factice ne subsiste.
+- Les dashboards **évaluateur** et **startup** ont chacun leur propre vue agrégée
+  (`EvaluatorDashboardOverview`, `StartupDashboardOverview`). `/dashboard/evaluateur`
+  n'est plus un doublon de `/dashboard/evaluateur/assignments`.
+- Le backlog issu de l'audit du 15/09/2026 (document de travail supprimé depuis)
+  a été exécuté : **vagues 1 et 2 complètes** sauf V2-09 (stockage S3,
+  bloqué faute de fournisseur), **vague 3 complète**. Détail de ce qui a changé et
+  des pièges rencontrés : [`backlog-execution-2026-09.md`](backlog-execution-2026-09.md).
 
 ## 10. Pour aller plus loin
 

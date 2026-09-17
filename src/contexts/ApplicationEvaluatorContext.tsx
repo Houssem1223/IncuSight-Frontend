@@ -18,6 +18,7 @@ import type { User } from "@/src/types/user";
 
 type ApplicationEvaluatorContextType = {
   evaluatorsByApplicationId: Record<string, User[]>;
+  assignmentsByApplicationId: Record<string, EvaluatorAssignment[]>;
   availableEvaluatorsByApplicationId: Record<string, User[]>;
   adminApplicationsByProgramId: Record<string, Application[]>;
   myAssignedApplicationsByProgramId: Record<string, Application[]>;
@@ -34,7 +35,16 @@ type ApplicationEvaluatorContextType = {
   fetchApplicationsByProgramForAdmin: (programId: string) => Promise<Application[]>;
   fetchMyAssignedApplications: () => Promise<Application[]>;
   fetchMyAssignedApplicationsByProgram: (programId: string) => Promise<Application[]>;
-  assignApplicationEvaluator: (applicationId: string, evaluatorId: string) => Promise<User[]>;
+  assignApplicationEvaluator: (
+    applicationId: string,
+    evaluatorId: string,
+    deadlineAt?: string,
+  ) => Promise<User[]>;
+  updateEvaluatorDeadline: (
+    applicationId: string,
+    evaluatorId: string,
+    deadlineAt: string,
+  ) => Promise<User[]>;
   removeApplicationEvaluator: (applicationId: string, evaluatorId: string) => Promise<User[]>;
 };
 
@@ -84,6 +94,46 @@ function dedupeUsers(users: User[]): User[] {
   }
 
   return [...map.values()];
+}
+
+/**
+ * Metadonnees d'affectation, gardees a part des `User[]` : la reponse backend est
+ * une ligne d'affectation (avec echeance), mais l'UI consomme historiquement une
+ * liste d'evaluateurs. On conserve les deux plutot que de changer ce contrat.
+ */
+export type EvaluatorAssignment = {
+  evaluatorId: string;
+  assignedAt?: string;
+  deadlineAt?: string | null;
+};
+
+function extractAssignmentsFromResponse(payload: unknown): EvaluatorAssignment[] {
+  if (!Array.isArray(payload)) {
+    return [];
+  }
+
+  return payload
+    .map((item): EvaluatorAssignment | null => {
+      if (!item || typeof item !== "object") {
+        return null;
+      }
+
+      const record = item as Record<string, unknown>;
+      const evaluator = toUser(record.evaluator);
+      const evaluatorId =
+        typeof record.evaluatorId === "string" ? record.evaluatorId : evaluator?.id;
+
+      if (!evaluatorId) {
+        return null;
+      }
+
+      return {
+        evaluatorId,
+        assignedAt: typeof record.assignedAt === "string" ? record.assignedAt : undefined,
+        deadlineAt: typeof record.deadlineAt === "string" ? record.deadlineAt : null,
+      };
+    })
+    .filter((assignment): assignment is EvaluatorAssignment => assignment !== null);
 }
 
 function extractUsersFromResponse(payload: unknown): User[] {
@@ -161,7 +211,7 @@ function toStartup(candidate: unknown): Startup | undefined {
     sector: typeof record.sector === "string" ? record.sector : undefined,
     stage: typeof record.stage === "string" ? record.stage : undefined,
     website: typeof record.website === "string" ? record.website : undefined,
-    status: typeof record.status === "string" ? record.status : undefined,
+    status: record.status === "DRAFT" || record.status === "PUBLISHED" ? record.status : undefined,
   };
 }
 
@@ -374,6 +424,9 @@ export function ApplicationEvaluatorProvider({ children }: { children: ReactNode
   const [evaluatorsByApplicationId, setEvaluatorsByApplicationId] = useState<
     Record<string, User[]>
   >({});
+  const [assignmentsByApplicationId, setAssignmentsByApplicationId] = useState<
+    Record<string, EvaluatorAssignment[]>
+  >({});
   const [availableEvaluatorsByApplicationId, setAvailableEvaluatorsByApplicationId] = useState<
     Record<string, User[]>
   >({});
@@ -480,6 +533,10 @@ export function ApplicationEvaluatorProvider({ children }: { children: ReactNode
           setEvaluatorsByApplicationId((current) => ({
             ...current,
             [applicationId]: evaluators,
+          }));
+          setAssignmentsByApplicationId((current) => ({
+            ...current,
+            [applicationId]: extractAssignmentsFromResponse(response),
           }));
 
           return evaluators;
@@ -640,7 +697,7 @@ export function ApplicationEvaluatorProvider({ children }: { children: ReactNode
   );
 
   const assignApplicationEvaluator = useCallback(
-    async (applicationId: string, evaluatorId: string) => {
+    async (applicationId: string, evaluatorId: string, deadlineAt?: string) => {
       return withLoading(async () => {
         setApplicationEvaluatorsError(null);
         const authToken = getRequiredToken();
@@ -650,7 +707,8 @@ export function ApplicationEvaluatorProvider({ children }: { children: ReactNode
             `application_evaluators/${applicationId}/evaluators`,
             {
               method: "POST",
-              body: JSON.stringify({ evaluatorId }),
+              // `deadlineAt` omis => le backend applique son defaut (J+7).
+              body: JSON.stringify(deadlineAt ? { evaluatorId, deadlineAt } : { evaluatorId }),
             },
             authToken,
           );
@@ -659,6 +717,34 @@ export function ApplicationEvaluatorProvider({ children }: { children: ReactNode
         } catch (error) {
           const message =
             error instanceof Error ? error.message : "Failed to assign evaluator to application";
+          setApplicationEvaluatorsError(message);
+          throw error;
+        }
+      });
+    },
+    [fetchApplicationEvaluators, getRequiredToken, withLoading],
+  );
+
+  const updateEvaluatorDeadline = useCallback(
+    async (applicationId: string, evaluatorId: string, deadlineAt: string) => {
+      return withLoading(async () => {
+        setApplicationEvaluatorsError(null);
+        const authToken = getRequiredToken();
+
+        try {
+          await apiFetch<unknown>(
+            `application_evaluators/${applicationId}/evaluators/${evaluatorId}`,
+            {
+              method: "PATCH",
+              body: JSON.stringify({ deadlineAt }),
+            },
+            authToken,
+          );
+
+          return await fetchApplicationEvaluators(applicationId);
+        } catch (error) {
+          const message =
+            error instanceof Error ? error.message : "Failed to update evaluation deadline";
           setApplicationEvaluatorsError(message);
           throw error;
         }
@@ -697,6 +783,7 @@ export function ApplicationEvaluatorProvider({ children }: { children: ReactNode
   const value = useMemo(
     () => ({
       evaluatorsByApplicationId,
+      assignmentsByApplicationId,
       availableEvaluatorsByApplicationId,
       adminApplicationsByProgramId,
       myAssignedApplicationsByProgramId,
@@ -714,10 +801,12 @@ export function ApplicationEvaluatorProvider({ children }: { children: ReactNode
       fetchMyAssignedApplications,
       fetchMyAssignedApplicationsByProgram,
       assignApplicationEvaluator,
+      updateEvaluatorDeadline,
       removeApplicationEvaluator,
     }),
     [
       evaluatorsByApplicationId,
+      assignmentsByApplicationId,
       availableEvaluatorsByApplicationId,
       adminApplicationsByProgramId,
       myAssignedApplicationsByProgramId,
@@ -735,6 +824,7 @@ export function ApplicationEvaluatorProvider({ children }: { children: ReactNode
       fetchMyAssignedApplications,
       fetchMyAssignedApplicationsByProgram,
       assignApplicationEvaluator,
+      updateEvaluatorDeadline,
       removeApplicationEvaluator,
     ],
   );

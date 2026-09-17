@@ -1,7 +1,7 @@
 "use client";
 
-import EvaluatorAssignedApplications from "@/src/components/dashboard/evaluateur/EvaluatorAssignedApplications";
+import EvaluatorDashboardOverview from "@/src/components/dashboard/evaluateur/EvaluatorDashboardOverview";
 
 export default function EvaluatorDashboardPage() {
-  return <EvaluatorAssignedApplications />;
+  return <EvaluatorDashboardOverview />;
 }

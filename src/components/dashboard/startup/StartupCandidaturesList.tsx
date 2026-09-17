@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo } from "react";
 import RoleGuard from "@/src/components/auth/Roleguard";
+import DecisionRevisionsHistory from "@/src/components/dashboard/DecisionRevisionsHistory";
 import { useApplications } from "@/src/contexts/ApplicationContext";
 import { useAuth } from "@/src/contexts/AuthContext";
 import { useStartups } from "@/src/contexts/StartupContext";
@@ -37,6 +38,18 @@ function getStatusClass(status: string) {
   }
 
   return "bg-amber-50 text-amber-700";
+}
+
+function getDecisionClass(status: string) {
+  if (status === "ACCEPTED") {
+    return "border-emerald-200 bg-emerald-50 text-emerald-800";
+  }
+
+  if (status === "REJECTED") {
+    return "border-red-200 bg-red-50 text-red-800";
+  }
+
+  return "border-border/75 bg-white text-foreground";
 }
 
 export default function StartupCandidaturesList() {
@@ -159,6 +172,33 @@ export default function StartupCandidaturesList() {
                     <p className="mt-3 text-sm text-foreground-muted">
                       {application.motivationLetter || "Aucune lettre de motivation."}
                     </p>
+
+                    {application.decision && (
+                      <div
+                        className={`mt-4 rounded-xl border px-3 py-3 ${getDecisionClass(
+                          normalizeStatus(application.decision.status),
+                        )}`}
+                      >
+                        <p className="text-xs font-medium uppercase tracking-[0.14em]">
+                          {normalizeStatus(application.decision.status) === "ACCEPTED"
+                            ? "Candidature acceptee"
+                            : "Candidature non retenue"}
+                        </p>
+                        <p className="mt-1 text-xs opacity-80">
+                          Decision rendue le {formatDate(application.decision.decidedAt)}
+                        </p>
+                        <p className="mt-2 whitespace-pre-wrap text-sm leading-6">
+                          {application.decision.comment?.trim() ||
+                            "Aucun commentaire n'a ete joint a cette decision."}
+                        </p>
+                        {/* Le candidat voit que sa decision a ete revue, quand et
+                            pourquoi — mais pas quel administrateur l'a revue. */}
+                        <DecisionRevisionsHistory
+                          className="mt-3"
+                          decision={application.decision}
+                        />
+                      </div>
+                    )}
                   </article>
                 );
               })}

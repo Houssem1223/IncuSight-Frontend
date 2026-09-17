@@ -9,7 +9,11 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { apiFetch } from "@/src/lib/api";
+import { apiFetch, apiFetchWithTotal } from "@/src/lib/api";
+import {
+  buildApplicationListPath,
+  type ApplicationListQuery,
+} from "@/src/lib/application-query";
 import { useAuth } from "@/src/contexts/AuthContext";
 import type { Application, Decision } from "@/src/types/application";
 
@@ -20,14 +24,16 @@ type CreateApplicationPayload = {
   [key: string]: unknown;
 };
 
-type UpdateApplicationPayload = {
-  status?: string;
-  [key: string]: unknown;
-};
-
 type MakeDecisionPayload = {
   status: string;
   comment?: string;
+};
+
+// Le motif est obligatoire cote backend : une decision rendue ne se change pas
+// sans justification tracee (table DecisionRevision).
+type ReviseDecisionPayload = {
+  status: string;
+  reason: string;
 };
 
 type MakeDecisionResult = {
@@ -45,14 +51,13 @@ type ApplicationContextType = {
   isApplicationsLoading: boolean;
   applicationsError: string | null;
   clearApplicationsError: () => void;
-  fetchAllApplications: () => Promise<Application[]>;
+  applicationsTotal: number | null;
+  fetchAllApplications: (query?: ApplicationListQuery) => Promise<Application[]>;
   fetchMyApplications: () => Promise<Application[]>;
-  findOneApplication: (id: string) => Promise<Application>;
-  findOneMyApplication: (id: string) => Promise<Application>;
   createApplication: (payload: CreateApplicationPayload) => Promise<Application>;
   removeMyApplication: (id: string) => Promise<BackendMessage | Application>;
-  updateApplicationStatus: (id: string, payload: UpdateApplicationPayload) => Promise<Application>;
   makeDecision: (id: string, payload: MakeDecisionPayload) => Promise<MakeDecisionResult>;
+  reviseDecision: (id: string, payload: ReviseDecisionPayload) => Promise<void>;
 };
 
 const ApplicationContext = createContext<ApplicationContextType | undefined>(undefined);
@@ -63,11 +68,13 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
   const [myApplications, setMyApplications] = useState<Application[]>([]);
   const [isApplicationsLoading, setIsApplicationsLoading] = useState(false);
   const [applicationsError, setApplicationsError] = useState<string | null>(null);
+  const [applicationsTotal, setApplicationsTotal] = useState<number | null>(null);
 
   useEffect(() => {
     setApplications([]);
     setMyApplications([]);
     setApplicationsError(null);
+    setApplicationsTotal(null);
     setIsApplicationsLoading(false);
   }, [user?.id]);
 
@@ -109,14 +116,21 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
     [upsertInList],
   );
 
-  const fetchAllApplications = useCallback(async () => {
+  const fetchAllApplications = useCallback(async (query?: ApplicationListQuery) => {
     setIsApplicationsLoading(true);
     setApplicationsError(null);
 
     try {
       const authToken = getRequiredToken();
-      const data = await apiFetch<Application[]>("application", {}, authToken);
+      const { data, total } = await apiFetchWithTotal<Application[]>(
+        buildApplicationListPath(query),
+        {},
+        authToken,
+      );
       setApplications(data);
+      // Sans page/limit le backend renvoie tout : le total vaut alors la longueur
+      // de la liste, et l'en-tete reste la source de verite des que l'on pagine.
+      setApplicationsTotal(total ?? data.length);
       return data;
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to fetch applications";
@@ -144,26 +158,6 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
       setIsApplicationsLoading(false);
     }
   }, [getRequiredToken]);
-
-  const findOneApplication = useCallback(
-    async (id: string) => {
-      const authToken = getRequiredToken();
-      const data = await apiFetch<Application>(`application/${id}`, {}, authToken);
-      upsertApplication(data);
-      return data;
-    },
-    [getRequiredToken, upsertApplication],
-  );
-
-  const findOneMyApplication = useCallback(
-    async (id: string) => {
-      const authToken = getRequiredToken();
-      const data = await apiFetch<Application>(`application/me/${id}`, {}, authToken);
-      upsertMyApplication(data);
-      return data;
-    },
-    [getRequiredToken, upsertMyApplication],
-  );
 
   const createApplication = useCallback(
     async (payload: CreateApplicationPayload) => {
@@ -203,33 +197,6 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
     [getRequiredToken],
   );
 
-  const updateApplicationStatus = useCallback(
-    async (id: string, payload: UpdateApplicationPayload) => {
-      const authToken = getRequiredToken();
-      const updated = await apiFetch<Application>(
-        `application/${id}/status`,
-        {
-          method: "PATCH",
-          body: JSON.stringify(payload),
-        },
-        authToken,
-      );
-
-      upsertApplication(updated);
-      setMyApplications((current) => {
-        const existsInMine = current.some((application) => application.id === updated.id);
-
-        if (!existsInMine) {
-          return current;
-        }
-
-        return upsertInList(current, updated);
-      });
-      return updated;
-    },
-    [getRequiredToken, upsertApplication, upsertInList],
-  );
-
   const makeDecision = useCallback(
     async (id: string, payload: MakeDecisionPayload) => {
       const authToken = getRequiredToken();
@@ -266,36 +233,54 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
     [getRequiredToken, upsertApplication, upsertInList],
   );
 
+  // La route de revision renvoie la Decision mise a jour, pas la candidature :
+  // on recharge la liste plutot que de recomposer un etat partiel a la main.
+  const reviseDecision = useCallback(
+    async (id: string, payload: ReviseDecisionPayload) => {
+      const authToken = getRequiredToken();
+
+      await apiFetch<unknown>(
+        `application/${id}/decision/revise`,
+        {
+          method: "PATCH",
+          body: JSON.stringify(payload),
+        },
+        authToken,
+      );
+
+      await fetchAllApplications();
+    },
+    [fetchAllApplications, getRequiredToken],
+  );
+
   const value = useMemo(
     () => ({
       applications,
+      applicationsTotal,
       myApplications,
       isApplicationsLoading,
       applicationsError,
       clearApplicationsError,
       fetchAllApplications,
       fetchMyApplications,
-      findOneApplication,
-      findOneMyApplication,
       createApplication,
       removeMyApplication,
-      updateApplicationStatus,
       makeDecision,
+      reviseDecision,
     }),
     [
       applications,
+      applicationsTotal,
       myApplications,
       isApplicationsLoading,
       applicationsError,
       clearApplicationsError,
       fetchAllApplications,
       fetchMyApplications,
-      findOneApplication,
-      findOneMyApplication,
       createApplication,
       removeMyApplication,
-      updateApplicationStatus,
       makeDecision,
+      reviseDecision,
     ],
   );
 

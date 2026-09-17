@@ -18,6 +18,9 @@ type CreateStartupPayload = {
   sector?: string;
   stage?: string;
   website?: string;
+  linkedinUrl?: string;
+  deckUrl?: string;
+  isPublicShowcase?: boolean;
 };
 
 type UpdateStartupPayload = Partial<CreateStartupPayload>;
@@ -35,10 +38,12 @@ type StartupContextType = {
   clearStartupsError: () => void;
   fetchAllStartups: () => Promise<Startup[]>;
   fetchMyStartups: () => Promise<Startup[]>;
-  findOneStartup: (id: string) => Promise<Startup>;
   createStartup: (payload: CreateStartupPayload) => Promise<Startup>;
   updateMyStartup: (startupId: string, payload: UpdateStartupPayload) => Promise<Startup>;
   removeMyStartup: (startupId: string) => Promise<BackendMessage>;
+  publishStartup: (startupId: string) => Promise<Startup>;
+  uploadPitchDeck: (startupId: string, file: File) => Promise<Startup>;
+  uploadLogo: (startupId: string, file: File) => Promise<Startup>;
 };
 
 const StartupContext = createContext<StartupContextType | undefined>(undefined);
@@ -138,16 +143,6 @@ export function StartupProvider({ children }: { children: ReactNode }) {
     }
   }, [getRequiredToken]);
 
-  const findOneStartup = useCallback(
-    async (id: string) => {
-      const authToken = getRequiredToken();
-      const startup = await apiFetch<Startup>(`startup/${id}`, {}, authToken);
-      upsertStartup(startup);
-      return startup;
-    },
-    [getRequiredToken, upsertStartup],
-  );
-
   const createStartup = useCallback(
     async (payload: CreateStartupPayload) => {
       const authToken = getRequiredToken();
@@ -174,6 +169,65 @@ export function StartupProvider({ children }: { children: ReactNode }) {
         {
           method: "PATCH",
           body: JSON.stringify(payload),
+        },
+        authToken,
+      );
+
+      upsertMyStartup(startup);
+      return startup;
+    },
+    [getRequiredToken, upsertMyStartup],
+  );
+
+  const publishStartup = useCallback(
+    async (startupId: string) => {
+      const authToken = getRequiredToken();
+      const startup = await apiFetch<Startup>(
+        `startup/${startupId}/publish`,
+        {
+          method: "PATCH",
+        },
+        authToken,
+      );
+
+      upsertMyStartup(startup);
+      return startup;
+    },
+    [getRequiredToken, upsertMyStartup],
+  );
+
+  const uploadPitchDeck = useCallback(
+    async (startupId: string, file: File) => {
+      const authToken = getRequiredToken();
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const startup = await apiFetch<Startup>(
+        `startup/${startupId}/pitch-deck`,
+        {
+          method: "POST",
+          body: formData,
+        },
+        authToken,
+      );
+
+      upsertMyStartup(startup);
+      return startup;
+    },
+    [getRequiredToken, upsertMyStartup],
+  );
+
+  const uploadLogo = useCallback(
+    async (startupId: string, file: File) => {
+      const authToken = getRequiredToken();
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const startup = await apiFetch<Startup>(
+        `startup/${startupId}/logo`,
+        {
+          method: "POST",
+          body: formData,
         },
         authToken,
       );
@@ -213,10 +267,12 @@ export function StartupProvider({ children }: { children: ReactNode }) {
       clearStartupsError,
       fetchAllStartups,
       fetchMyStartups,
-      findOneStartup,
       createStartup,
       updateMyStartup,
       removeMyStartup,
+      publishStartup,
+      uploadPitchDeck,
+      uploadLogo,
     }),
     [
       startups,
@@ -227,10 +283,12 @@ export function StartupProvider({ children }: { children: ReactNode }) {
       clearStartupsError,
       fetchAllStartups,
       fetchMyStartups,
-      findOneStartup,
       createStartup,
       updateMyStartup,
       removeMyStartup,
+      publishStartup,
+      uploadPitchDeck,
+      uploadLogo,
     ],
   );
 
