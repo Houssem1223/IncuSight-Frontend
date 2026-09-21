@@ -12,10 +12,10 @@ const baseClasses =
   "inline-flex items-center justify-center gap-2 rounded-xl text-sm font-medium transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F97316]/40 disabled:pointer-events-none disabled:opacity-60";
 
 const variantClasses: Record<ButtonVariant, string> = {
-  default: "bg-[#F97316] text-white hover:brightness-95",
+  default: "bg-[var(--action-background)] text-[var(--action-foreground)] hover:brightness-95",
   outline:
-    "border border-slate-200 bg-transparent text-[#0F172A] hover:border-[#F97316] hover:text-[#F97316]",
-  ghost: "text-[#0F172A] hover:bg-slate-100",
+    "border border-border bg-transparent text-foreground hover:border-brand hover:text-[var(--action-text)]",
+  ghost: "text-foreground hover:bg-background-accent",
 };
 
 const sizeClasses: Record<ButtonSize, string> = {

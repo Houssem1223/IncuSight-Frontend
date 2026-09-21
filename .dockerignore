@@ -1,0 +1,12 @@
+node_modules
+.next
+coverage
+
+.git
+.github
+
+.env
+.env.*
+
+npm-debug.log
+README.md

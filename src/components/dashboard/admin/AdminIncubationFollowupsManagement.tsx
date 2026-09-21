@@ -1,20 +1,21 @@
 "use client";
 
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { Activity, RefreshCw } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { Activity } from "lucide-react";
 import RoleGuard from "@/src/components/auth/Roleguard";
 import ConfirmDialog from "@/src/components/dashboard/ConfirmDialog";
 import { Button } from "@/src/components/ui/button";
 import { useApplications } from "@/src/contexts/ApplicationContext";
 import { useAuth } from "@/src/contexts/AuthContext";
 import { useIncubationFollowups } from "@/src/contexts/IncubationFollowupsContext";
+import { usePrograms } from "@/src/contexts/ProgramContext";
+import { useSelectedFollowUp } from "@/src/hooks/useSelectedFollowUp";
 import type {
   FollowUpObjective,
   FollowUpPhase,
   FollowUpStatus,
 } from "@/src/types/incubation-followups";
-import FollowUpOverview from "./followups/FollowUpOverview";
-import FollowUpsList from "./followups/FollowUpsList";
 import {
   clampProgress,
   emptyObjectiveForm,
@@ -25,15 +26,17 @@ import {
   type ObjectiveFormState,
 } from "./followups/followupHelpers";
 import ObjectiveModal from "./followups/ObjectiveModal";
-import ObjectivesSection from "./followups/ObjectivesSection";
-import StartFollowUpPanel from "./followups/StartFollowUpPanel";
-import SummaryCards from "./followups/SummaryCards";
 import {
   getFollowUpLockMessage,
   isFollowUpOpen,
 } from "@/src/lib/incubation-followup-state";
 import { downloadIncubationCsv } from "@/src/lib/reports";
-import UpdatesTimeline from "./followups/UpdatesTimeline";
+import { invalidateStartupVigilance } from "@/src/lib/startup-vigilance-query";
+
+import IncubationStartupSidebar from "./incubation-workspace/IncubationStartupSidebar";
+import IncubationWorkspaceContent from "./incubation-workspace/IncubationWorkspaceContent";
+import NewFollowUpDialog from "./incubation-workspace/NewFollowUpDialog";
+import IncubationWorkspace from "./incubation-workspace/IncubationWorkspace";
 
 export default function AdminIncubationFollowupsManagement() {
   const { isAuthReady, isAuthenticated, token } = useAuth();
@@ -56,10 +59,23 @@ export default function AdminIncubationFollowupsManagement() {
     updateObjectiveByAdmin,
   } = useIncubationFollowups();
 
-  const [selectedFollowUpId, setSelectedFollowUpId] = useState("");
+  // Source des programmes du filtre de vigilance : la meme que les filtres du
+  // dashboard. Le classement ne cite que les programmes ayant un suivi actif,
+  // ce qui ne suffit pas a peupler un Select de tous les programmes.
+  const { programs, fetchAllPrograms } = usePrograms();
+
+  // Objectifs et statut alimentent le score de vigilance : le laisser tel quel
+  // apres une modification afficherait un indicateur perime a cote des donnees
+  // qui viennent de changer.
+  const queryClient = useQueryClient();
+
+  // Drill-down depuis le classement de vigilance du dashboard, comme
+  // `AdminApplicationsManagement` le fait deja avec ses propres parametres.
+  // L'URL fait foi : Precedent/Suivant du navigateur resynchronisent la
+  // selection sans etat local a recopier.
+  const { selectedFollowUpId, selectFollowUp } = useSelectedFollowUp();
   const [applicationId, setApplicationId] = useState("");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"ALL" | FollowUpStatus>("ALL");
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isCreatingFollowUp, setIsCreatingFollowUp] = useState(false);
   const [isObjectiveModalOpen, setIsObjectiveModalOpen] = useState(false);
   const [editingObjective, setEditingObjective] = useState<FollowUpObjective | null>(null);
@@ -77,12 +93,19 @@ export default function AdminIncubationFollowupsManagement() {
     clearFollowUpsError();
     setActionError("");
 
-    await Promise.all([fetchAllApplications(), fetchAllFollowUps()]);
+    await Promise.all([
+      fetchAllApplications(),
+      fetchAllFollowUps(),
+      // Le filtre par programme retombe sur « Tous les programmes » si la liste
+      // ne charge pas : ce n'est pas une raison de faire echouer l'ecran.
+      fetchAllPrograms().catch(() => []),
+    ]);
   }, [
     clearApplicationsError,
     clearFollowUpsError,
     fetchAllApplications,
     fetchAllFollowUps,
+    fetchAllPrograms,
   ]);
 
   useEffect(() => {
@@ -94,51 +117,18 @@ export default function AdminIncubationFollowupsManagement() {
     });
   }, [isAuthReady, isAuthenticated, refresh]);
 
-  const sortedFollowUps = useMemo(
-    () =>
-      [...followUps].sort((left, right) => {
-        const leftDate = new Date(left.createdAt || 0).getTime();
-        const rightDate = new Date(right.createdAt || 0).getTime();
-        return rightDate - leftDate;
-      }),
-    [followUps],
-  );
+  // Explicit URL selection also supports the mobile list → detail flow.
+  const activeFollowUpId = selectedFollowUpId;
+  const activeFollowUp = followUps.find(followUp => followUp.id === activeFollowUpId) ?? null;
 
-  const filteredFollowUps = useMemo(() => {
-    const normalizedQuery = searchQuery.trim().toLocaleLowerCase("fr");
-
-    return sortedFollowUps.filter((followUp) => {
-      const status = followUp.status || "ACTIVE";
-
-      if (statusFilter !== "ALL" && status !== statusFilter) {
-        return false;
-      }
-
-      if (!normalizedQuery) {
-        return true;
-      }
-
-      return [
-        followUp.startup?.startupName,
-        followUp.program?.title,
-        followUp.applicationId,
-        followUp.startupId,
-      ].some((value) => value?.toLocaleLowerCase("fr").includes(normalizedQuery));
-    });
-  }, [searchQuery, sortedFollowUps, statusFilter]);
-
-  const activeFollowUpId = useMemo(() => {
-    if (filteredFollowUps.some((followUp) => followUp.id === selectedFollowUpId)) {
-      return selectedFollowUpId;
-    }
-
-    return filteredFollowUps[0]?.id || "";
-  }, [filteredFollowUps, selectedFollowUpId]);
-
-  const activeFollowUp = useMemo(
-    () => followUps.find((followUp) => followUp.id === activeFollowUpId) || null,
-    [activeFollowUpId, followUps],
-  );
+  // A browser Back/Forward can change the dossier while a dialog is open.
+  // Close that dialog so its draft cannot be submitted against another startup.
+  useEffect(() => {
+    setPendingStatusChange(null);
+    setIsObjectiveModalOpen(false);
+    setEditingObjective(null);
+    setActionError("");
+  }, [activeFollowUpId]);
 
   // Statut et notes internes restent modifiables sur un suivi clos — sinon on ne
   // pourrait plus le rouvrir. Ce sont les objectifs qui se figent.
@@ -234,8 +224,10 @@ export default function AdminIncubationFollowupsManagement() {
 
     try {
       const created = await createFromApplication(applicationId);
-      setSelectedFollowUpId(created.id);
+      selectFollowUp(created.id);
       setApplicationId("");
+      setIsCreateOpen(false);
+      await invalidateStartupVigilance(queryClient);
     } catch (error) {
       setActionError(error instanceof Error ? error.message : "Impossible de créer le suivi.");
     } finally {
@@ -253,6 +245,7 @@ export default function AdminIncubationFollowupsManagement() {
 
     try {
       await updateFollowUp(activeFollowUp.id, { phase });
+      await invalidateStartupVigilance(queryClient, activeFollowUp.id);
     } catch (error) {
       setActionError(error instanceof Error ? error.message : "Impossible de mettre à jour la phase.");
     } finally {
@@ -291,6 +284,7 @@ export default function AdminIncubationFollowupsManagement() {
         status: pendingStatusChange,
         ...(isTerminal ? { endDate: new Date().toISOString().slice(0, 10) } : {}),
       });
+      await invalidateStartupVigilance(queryClient, activeFollowUp.id);
       setPendingStatusChange(null);
     } catch (error) {
       setActionError(error instanceof Error ? error.message : "Impossible de mettre à jour le statut.");
@@ -383,6 +377,7 @@ export default function AdminIncubationFollowupsManagement() {
         });
       }
 
+      await invalidateStartupVigilance(queryClient, activeFollowUpId);
       setIsObjectiveModalOpen(false);
       setEditingObjective(null);
       setObjectiveForm(emptyObjectiveForm);
@@ -393,116 +388,41 @@ export default function AdminIncubationFollowupsManagement() {
     }
   };
 
-  const isLoading = isFollowUpsLoading || isApplicationsLoading;
-
   return (
     <RoleGuard allowedRole="ADMIN">
-      <div className="space-y-6">
-        <section className="motion-rise dashboard-surface p-6">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-brand-strong">
-                Pilotage incubation
-              </p>
-              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
-                Suivi des startups incubées
-              </h1>
-              <p className="mt-2 max-w-3xl text-sm text-foreground-muted">
-                Créez un suivi depuis une candidature acceptée, définissez les objectifs et
-                consultez les comptes rendus transmis par les startups.
-              </p>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              <Button
-                disabled={isExportingCsv}
-                onClick={() => void handleExportCsv()}
-                type="button"
-                variant="outline"
-              >
-                {isExportingCsv ? "Export…" : "Exporter en CSV"}
-              </Button>
-
-              <Button
-                disabled={isLoading}
-                onClick={() => void refresh().catch(() => {
-                })}
-                type="button"
-                variant="outline"
-              >
-                <RefreshCw className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
-                Actualiser
-              </Button>
-            </div>
+      <IncubationWorkspace selected={Boolean(activeFollowUpId)}>
+        <header className="inc-module-header">
+          <div><p className="inc-eyebrow">Accompagnement</p><h1>Suivi incubation</h1><p>Pilotez l’accompagnement et l’évolution des startups incubées.</p></div>
+          <div className="inc-module-actions">
+            <Button type="button" variant="outline" disabled={isExportingCsv} onClick={() => void handleExportCsv()}>{isExportingCsv ? "Export…" : "Exporter en CSV"}</Button>
           </div>
-
-          <SummaryCards
-            active={summary.active}
-            completed={summary.completed}
-            completedObjectives={summary.completedObjectives}
-            objectives={summary.objectives}
-          />
-        </section>
-
-        <StartFollowUpPanel
-          applicationId={applicationId}
-          availableApplications={availableApplications}
-          errorMessage={actionError || applicationsError || followUpsError}
-          isCreating={isCreatingFollowUp}
-          onApplicationChange={setApplicationId}
-          onCreate={() => void handleCreateFollowUp()}
-        />
-
-        <section className="grid gap-6 xl:grid-cols-[22rem_minmax(0,1fr)]">
-          <FollowUpsList
-            activeFollowUpId={activeFollowUpId}
-            followUps={filteredFollowUps}
-            isLoading={isFollowUpsLoading}
-            onSearchQueryChange={setSearchQuery}
-            onSelect={setSelectedFollowUpId}
-            onStatusFilterChange={setStatusFilter}
-            searchQuery={searchQuery}
-            statusFilter={statusFilter}
-          />
-
-          <div className="min-w-0 space-y-6">
-            {!activeFollowUp && (
-              <section className="dashboard-surface p-8 text-center">
-                <Activity className="mx-auto h-10 w-10 text-brand" />
-                <h2 className="mt-3 text-lg font-semibold text-foreground">
-                  Aucun suivi sélectionné
-                </h2>
-                <p className="mt-2 text-sm text-foreground-muted">
-                  Créez un suivi depuis une candidature acceptée ou sélectionnez un dossier.
-                </p>
-              </section>
-            )}
-
-            {activeFollowUp && (
-              <>
-                <FollowUpOverview
-                  followUp={activeFollowUp}
-                  isSavingNotes={isSavingNotes}
-                  isUpdatingFollowUp={isUpdatingFollowUp}
-                  notesDraft={notesDraft}
-                  onNotesDraftChange={setNotesDraft}
-                  onPhaseChange={(phase) => void handlePhaseChange(phase)}
-                  onRequestStatusChange={handleRequestStatusChange}
-                  onSaveNotes={() => void handleSaveNotes()}
-                />
-                <ObjectivesSection
-                  isEditable={isActiveFollowUpEditable}
-                  lockMessage={followUpLockMessage}
-                  objectives={activeFollowUp.objectives || []}
-                  onAddObjective={openCreateObjective}
-                  onEditObjective={openEditObjective}
-                />
-                <UpdatesTimeline updates={activeFollowUp.updates || []} />
-              </>
-            )}
+        </header>
+        <dl className="inc-stat-strip">
+          <div><dd>{summary.active}</dd><dt>suivis actifs</dt></div><div><dd>{summary.completed}</dd><dt>terminés</dt></div>
+          <div><dd>{summary.objectives}</dd><dt>objectifs</dt></div><div><dd>{summary.completedObjectives}</dd><dt>réalisés</dt></div>
+        </dl>
+        {actionError && !isCreateOpen && !isObjectiveModalOpen && <p role="alert" className="inc-error">{actionError}</p>}
+        <div className="inc-layout">
+          <IncubationStartupSidebar selectedId={activeFollowUpId} onSelect={selectFollowUp} programs={programs} onCreate={() => setIsCreateOpen(true)} hasFollowUps={followUps.length > 0} />
+          <div className="inc-detail">
+            {followUpsError && <div role="alert" className="inc-error">{followUpsError}<Button variant="outline" size="sm" onClick={() => void fetchAllFollowUps().catch(() => {})}>Réessayer le suivi</Button></div>}
+            {!activeFollowUp && isFollowUpsLoading && <div className="inc-skeletons" role="status" aria-label="Chargement du suivi"><div /><div /><div /></div>}
+            {!activeFollowUp && !isFollowUpsLoading && <div className="inc-empty">
+              <Activity aria-hidden="true" size={28} />
+              <h2>{activeFollowUpId ? "Suivi indisponible" : followUps.length ? "Votre espace d’accompagnement" : "Aucune startup en incubation"}</h2>
+              <p>{activeFollowUpId ? "Ce dossier n’a pas pu être trouvé. Vous pouvez sélectionner une autre startup." : followUps.length ? "Sélectionnez une startup pour consulter son suivi." : "Commencez par créer un suivi à partir d’une candidature acceptée."}</p>
+              {activeFollowUpId && <Button type="button" variant="outline" onClick={() => selectFollowUp("")}>Retour aux startups</Button>}
+              {!followUps.length && !followUpsError && <Button type="button" onClick={() => setIsCreateOpen(true)}>Créer un suivi</Button>}
+            </div>}
+            {activeFollowUp && <IncubationWorkspaceContent key={activeFollowUp.id} followUp={activeFollowUp}
+              busy={isUpdatingFollowUp} onPhase={phase => void handlePhaseChange(phase)} onStatus={handleRequestStatusChange} onBack={() => selectFollowUp("")}
+              objectives={{ objectives: activeFollowUp.objectives ?? [], isEditable: isActiveFollowUpEditable, lockMessage: followUpLockMessage, onAddObjective: openCreateObjective, onEditObjective: openEditObjective }}
+              notes={{ value: notesDraft, savedValue: activeFollowUp.notes ?? "", busy: isSavingNotes, onChange: setNotesDraft, onSave: () => void handleSaveNotes() }}
+            />}
           </div>
-        </section>
-      </div>
+        </div>
+      </IncubationWorkspace>
+      <NewFollowUpDialog isOpen={isCreateOpen} onClose={() => { if (!isCreatingFollowUp) setIsCreateOpen(false); }} applications={availableApplications} value={applicationId} onChange={setApplicationId} onCreate={() => void handleCreateFollowUp()} busy={isCreatingFollowUp || isApplicationsLoading || isFollowUpsLoading} error={actionError || applicationsError} />
 
       <ObjectiveModal
         editingObjective={editingObjective}

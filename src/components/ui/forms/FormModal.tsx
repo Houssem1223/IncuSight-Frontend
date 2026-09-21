@@ -1,6 +1,7 @@
 "use client";
 
-import { FormEvent, ReactNode, useEffect } from "react";
+import { FormEvent, ReactNode, useEffect, useId, useRef } from "react";
+import { createPortal } from "react-dom";
 
 type FormModalProps = {
   isOpen: boolean;
@@ -27,6 +28,31 @@ export default function FormModal({
   panelClassName,
   isBusy = false,
 }: FormModalProps) {
+  const titleId = useId();
+  const panel = useRef<HTMLFormElement>(null);
+  useEffect(() => {
+    if (!isOpen) return;
+    const previousFocus = document.activeElement as HTMLElement | null;
+    const focusable = () => Array.from(panel.current?.querySelectorAll<HTMLElement>(
+      'button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex="0"]',
+    ) ?? []);
+    (focusable()[0] ?? panel.current)?.focus();
+    const trapFocus = (event: KeyboardEvent) => {
+      if (event.key !== "Tab") return;
+      const items = focusable();
+      const first = items[0];
+      const last = items.at(-1);
+      if (!first) { event.preventDefault(); panel.current?.focus(); return; }
+      if (event.shiftKey && (document.activeElement === first || document.activeElement === panel.current)) {
+        event.preventDefault(); last?.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault(); first.focus();
+      }
+    };
+    window.addEventListener("keydown", trapFocus);
+    return () => { window.removeEventListener("keydown", trapFocus); previousFocus?.focus(); };
+  }, [isOpen]);
+
   useEffect(() => {
     if (!isOpen) {
       return;
@@ -60,14 +86,14 @@ export default function FormModal({
   };
 
   const mergedPanelClassName = [
-    "modal-panel-enter relative z-10 flex w-full flex-col gap-4 rounded-3xl border border-border/75 bg-gradient-to-br from-white via-slate-50 to-orange-50/30 p-5 shadow-[0_30px_70px_rgba(24,36,51,0.28)] md:p-6",
+    "relative z-10 flex max-h-[calc(100dvh-2rem)] w-full flex-col gap-4 overflow-y-auto rounded-2xl border border-border bg-surface p-5 shadow-xl md:p-6",
     maxWidthClassName,
     panelClassName,
   ]
     .filter(Boolean)
     .join(" ");
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 md:p-6">
       <button
         aria-label="Fermer la modale"
@@ -77,10 +103,10 @@ export default function FormModal({
         type="button"
       />
 
-      <form aria-modal="true" className={mergedPanelClassName} onSubmit={onSubmit} role="dialog">
+      <form ref={panel} tabIndex={-1} aria-labelledby={titleId} aria-modal="true" className={mergedPanelClassName} onSubmit={onSubmit} role="dialog">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h2 className="text-lg font-semibold text-foreground">{title}</h2>
+            <h2 id={titleId} className="text-lg font-semibold text-foreground">{title}</h2>
             {description && <p className="mt-1 text-xs text-foreground-muted">{description}</p>}
           </div>
 
@@ -97,6 +123,6 @@ export default function FormModal({
 
         {children}
       </form>
-    </div>
+    </div>, document.body,
   );
 }

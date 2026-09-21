@@ -1,12 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import { CalendarDays, Clock3, Plus, TriangleAlert } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { Progress } from "@/src/components/ui/progress";
 import type { FollowUpObjective } from "@/src/types/incubation-followups";
 import {
   formatDate,
-  objectiveStatusClass,
   objectiveStatusLabels,
   priorityLabels,
 } from "./followupHelpers";
@@ -27,8 +27,10 @@ export default function ObjectivesSection({
   onAddObjective,
   onEditObjective,
 }: ObjectivesSectionProps) {
+  const [filter, setFilter] = useState("ALL");
+  const visible = objectives.filter(objective => filter === "ALL" || (objective.status || "TODO") === filter);
   return (
-    <section className="dashboard-surface p-6">
+    <section className="inc-objectives">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold text-foreground">Objectifs</h2>
@@ -50,28 +52,32 @@ export default function ObjectivesSection({
       )}
 
       {objectives.length === 0 && (
-        <p className="mt-4 rounded-xl border border-border/75 bg-white p-4 text-sm text-foreground-muted">
+        <p className="mt-4 rounded-xl border border-border/75 bg-surface p-4 text-sm text-foreground-muted">
           Aucun objectif défini pour ce suivi.
         </p>
       )}
 
-      <div className="mt-4 grid gap-3">
-        {objectives.map((objective) => {
+      <div className="inc-objective-filters" role="group" aria-label="Filtrer les objectifs">
+        {[["ALL", "Tous"], ...Object.entries(objectiveStatusLabels)].map(([key, label]) => <button key={key} type="button" aria-pressed={filter === key} onClick={() => setFilter(key)}>{label}<span aria-hidden="true">{key === "ALL" ? objectives.length : objectives.filter(o => (o.status || "TODO") === key).length}</span></button>)}
+      </div>
+      {!visible.length && objectives.length > 0 && <p className="text-sm text-foreground-muted">Aucun objectif pour ce statut.</p>}
+      <div className="mt-4 divide-y divide-border">
+        {visible.map((objective) => {
           const status = objective.status || "TODO";
           const priority = objective.priority || "MEDIUM";
 
           return (
-            <article className="dashboard-card p-4" key={objective.id}>
+            <article data-status={status} className="inc-objective-row" key={objective.id}>
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <h3 className="font-semibold text-foreground">{objective.title}</h3>
                     <span
-                      className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${objectiveStatusClass(status)}`}
+                      className="semantic-badge" data-tone={status === "DONE" ? "neutral" : status === "BLOCKED" ? "danger" : "info"}
                     >
                       {objectiveStatusLabels[status]}
                     </span>
-                    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] text-slate-600">
+                    <span className="inc-priority" data-priority={priority}>
                       Priorité {priorityLabels[priority].toLocaleLowerCase("fr")}
                     </span>
                   </div>
@@ -99,7 +105,7 @@ export default function ObjectivesSection({
                   indicatorClassName={
                     status === "BLOCKED"
                       ? "bg-red-500"
-                      : "bg-gradient-to-r from-orange-500 to-amber-400"
+                      : "bg-brand"
                   }
                   value={objective.progress ?? 0}
                 />

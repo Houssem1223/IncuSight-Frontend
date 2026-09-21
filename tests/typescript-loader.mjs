@@ -3,17 +3,31 @@ import { fileURLToPath } from "node:url";
 import ts from "typescript";
 
 export async function resolve(specifier, context, nextResolve) {
-  const isExtensionlessRelativeImport =
-    /^\.\.?\//.test(specifier) && !/\.[^/]+$/.test(specifier);
+  // `next` n'expose pas de carte `exports` : sous ESM, ses sous-chemins doivent
+  // porter leur extension (`next/link` -> `next/link.js`). Le bundler Next le
+  // fait pour nous a l'execution, pas Node.
+  if (/^next\/[^/.]+$/.test(specifier)) {
+    return nextResolve(`${specifier}.js`, context);
+  }
 
-  if (isExtensionlessRelativeImport && context.parentURL) {
-    const typescriptUrl = new URL(`${specifier}.ts`, context.parentURL);
+  const isAlias = specifier.startsWith("@/");
+  const isLocal = isAlias || /^\.\.?\//.test(specifier);
 
-    try {
-      await readFile(fileURLToPath(typescriptUrl));
-      return { shortCircuit: true, url: typescriptUrl.href };
-    } catch {
-      // L'import peut cibler un autre type de module : laisser Node le résoudre.
+  if (isLocal && !/\.[^/]+$/.test(specifier) && context.parentURL) {
+    const baseUrl = isAlias
+      ? new URL(`../${specifier.slice(2)}`, import.meta.url)
+      : new URL(specifier, context.parentURL);
+
+    // `/index.ts(x)` couvre les barils du dépôt (`@/src/components/ui/forms`) :
+    // les bundlers résolvent un dossier vers son index, pas l'ESM de Node.
+    for (const suffix of [".ts", ".tsx", "/index.ts", "/index.tsx"]) {
+      const typescriptUrl = new URL(`${baseUrl.href}${suffix}`);
+      try {
+        await readFile(fileURLToPath(typescriptUrl));
+        return { shortCircuit: true, url: typescriptUrl.href };
+      } catch {
+        // L'import peut cibler un autre type de module : laisser Node le résoudre.
+      }
     }
   }
 
@@ -21,7 +35,8 @@ export async function resolve(specifier, context, nextResolve) {
 }
 
 export async function load(url, context, nextLoad) {
-  if (!url.endsWith(".ts")) {
+  // node:test adds a query string when loading a mocked local module.
+  if (!/\.tsx?(?:\?|$)/.test(url)) {
     return nextLoad(url, context);
   }
 
@@ -30,6 +45,7 @@ export async function load(url, context, nextLoad) {
     compilerOptions: {
       module: ts.ModuleKind.ESNext,
       target: ts.ScriptTarget.ES2022,
+      jsx: ts.JsxEmit.ReactJSX,
     },
     fileName: fileURLToPath(url),
   });

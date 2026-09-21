@@ -93,14 +93,14 @@ Le rôle le plus riche fonctionnellement — vue d'ensemble complète de l'incub
 
 | Route | Composant délégué | Rôle |
 |---|---|---|
-| `admin` (Overview) | `AdminDashboardOverview` | Dashboard KPI/graphiques — **déjà documenté en détail**, voir `dashboard-frontend-context.md`, `dashboard-backend-api-contract.md`, `dashboard-phase2-plan.md` |
+| `admin` (Overview) | `AdminDashboardOverview` | Dashboard KPI/graphiques — **déjà documenté en détail**, voir `dashboard-frontend-context.md`, `dashboard-backend-api-contract.md`, `dashboard-phase2-plan.md` ; se termine par les 5 startups nécessitant une attention (`StartupVigilanceOverview variant="top"`, voir [`startup-vigilance-frontend.md`](startup-vigilance-frontend.md)) |
 | `applications` | `AdminApplicationsManagement` | Liste/gestion de toutes les candidatures |
 | `application-evaluators` | `AdminApplicationEvaluatorsManagement` | Affectation d'évaluateurs à une candidature précise |
-| `application-evaluations` | `AdminApplicationEvaluationsManagement` | Consultation des grilles d'évaluation soumises |
+| `application-evaluations` | `AdminApplicationEvaluationsManagement` | Consultation des grilles d'évaluation soumises **+ analyse IA des évaluations** (`ApplicationAiAnalysisCard`, voir [`ai-analysis-frontend.md`](ai-analysis-frontend.md)) |
 | `program` | `AdminProgramsManagement` | CRUD des programmes (création via modal, `CreateProgramModal`) |
 | `startups` | `AdminStartupsList` | Liste des profils startup (lecture seule — pas de création admin, voir §7) |
 | `users` | `AdminUsersManagement` | Gestion des comptes (activation/désactivation, rôles) |
-| `incubation-followups` | `AdminIncubationFollowupsManagement` | Vue admin des suivis d'incubation en cours |
+| `incubation-followups` | `AdminIncubationFollowupsManagement` | Workspace : sidebar avec filtres serveur, header startup et cinq onglets. Sélection `?followUp=` et `?tab=` dans l'URL, historique natif intégré à Next. Voir [`incubation-workspace.md`](incubation-workspace.md) et [`startup-vigilance-frontend.md`](startup-vigilance-frontend.md) |
 | `notifications` | `NotificationsPanel` (générique, partagé par les 3 rôles) | Notifications de l'admin |
 
 ### Évaluateur (`/dashboard/evaluateur/**`)
@@ -218,6 +218,8 @@ modèles.
 | `notifications` | Liste, compteur non-lus, marquage lu, suppression ; scheduler pour les rappels de deadline |
 | `mail` | Envoi d'emails (nodemailer), utilisé par `auth` et `notifications` |
 | `dashboard` | Agrégations KPI/reporting admin — **déjà documenté**, voir `dashboard-backend-api-contract.md` |
+| `ai` | Analyse IA des évaluations d'une candidature (synthèse + divergences), ADMIN uniquement — contrat dans `IncuSight-Backend/docs/AI_ANALYSIS.md`, côté frontend dans `docs/ai-analysis-frontend.md` |
+| `startup-vigilance` | Classement filtré (`search`/`programId`/`status`/`phase`/`level`/`period`+`from`/`to`), trié et paginé (`page`/`limit`/`sort`), enveloppe `{ items, pagination }` + score déterministe et analyse IA d'accompagnement d'un suivi, ADMIN uniquement — contrat dans `IncuSight-Backend/docs/STARTUP_VIGILANCE.md`, côté frontend dans `docs/startup-vigilance-frontend.md` |
 | `Prisma` | Service Prisma partagé, injecté partout |
 
 Briques transverses (`src/core/common/`) : `guards/auth.guard.ts` (JWT),
@@ -271,23 +273,44 @@ imbriqués et disponibles pour les 3 rôles.
 ### Types métier (`src/types/`)
 
 `auth.ts`, `user.ts`, `application.ts`, `program.ts`, `startup.ts`, `evaluation.ts`,
-`incubation-followups.ts`, `notification.ts` — un fichier par domaine, reflètent les
+`incubation-followups.ts`, `notification.ts`, `ai-analysis.ts`,
+`startup-vigilance.ts` — un fichier par domaine, reflètent les
 entités Prisma côté frontend (avec le typage défensif `[key: string]: unknown`
 mentionné en §4).
 
 ## 8. Tests
 
-- **Frontend** (`tests/`, 7 fichiers `.mjs` + 1 loader utilitaire) — tests unitaires
-  légers via un runner Node natif custom (`npm test`), 8 fichiers, 68 tests.
+- **Frontend** (`tests/`, 17 fichiers de tests `.mjs` + utilitaires) — tests
+  via un runner Node natif custom (`npm test`), 289 tests.
   Auth/session : `api-refresh`, `auth-routing`, `auth-validation`,
   `email-verification`, `password-recovery`, `resend-verification`, `signup`.
   Règles métier : `business-rules` (bornes de notation, politique de mot de passe,
-  construction des query strings paginées, routage des notifications par rôle).
-  ⚠️ Le loader ne transpile que les fichiers `.ts` — un test ne peut donc pas
-  importer un `.tsx`. C'est pourquoi les règles pures des écrans vivent dans
-  `src/lib/*.ts` (`evaluation-scores`, `password-policy`, `application-query`,
-  `pagination`) : les y laisser inline les rendrait intestables.
-  Toujours rien sur les contexts React eux-mêmes ni sur les composants UI.
+  construction des query strings paginées, routage des notifications par rôle) et
+  `ai-analysis` (libellés de sévérité, sections de synthèse, tri des divergences,
+  traduction des erreurs du module IA, routes consommées).
+  `startup-vigilance` couvre la vigilance des startups (niveaux, facteurs et cas
+  dégradés, statuts IA, sources, routes), `startup-vigilance-list` sa liste
+  filtrée et paginée (les onze paramètres, clés de cache, retour en page 1, URL)
+  et `startup-vigilance-render` ses écrans.
+  `ai-analysis-cache` exerce les vrais observers TanStack Query (invalidation et
+  concurrence) ; `ai-analysis-render` et `startup-vigilance-render` rendent les
+  composants React avec `react-dom/server` et un `QueryClient` préchargé.
+  Le loader accepte `.ts`, `.tsx`, les alias `@/`, les barils `index.ts(x)` et les
+  sous-chemins `next/*`. Les règles pures restent dans `src/lib/*.ts` pour être
+  testées indépendamment du rendu.
+  `tests/dom/` ajoute un **harnais DOM** (jsdom + `@testing-library/react`, les
+  deux seules devDependencies de test) : clics et Select réels, et
+  Précédent/Suivant du navigateur via la vraie `window.history`, avec
+  `next/navigation` substitué par `--experimental-test-module-mocks`. Il couvre
+  la liste de vigilance et 33 scénarios du workspace d'incubation, avec le vrai
+  `IncubationFollowupsProvider` et des réponses HTTP simulées (ajout/modification
+  d'objectifs, notes, création de suivi, phase et statut compris).
+  Les 18 tests `dashboard-sidebar.dom` couvrent également la sidebar commune
+  aux trois rôles : persistance, SSR/hydratation, clavier, infobulles et tiroir.
+  `tests/visual/incubation-workspace.mjs` vérifie séparément le build dans Chrome
+  aux sept résolutions demandées, menu ouvert/replié : 55 vues principales,
+  avec fixtures et captures dans le dossier temporaire.
+  Voir [`dashboard-ux-polish.md`](dashboard-ux-polish.md) pour la seconde passe UX.
 - **Backend** — 39 fichiers `*.spec.ts`, 203 tests (Jest, un `.controller.spec.ts`
   + `.service.spec.ts` par module) + `test/app.e2e-spec.ts` et
   `test/dashboard.e2e-spec.ts` (e2e). Le module `dashboard` est le plus testé

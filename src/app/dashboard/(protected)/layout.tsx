@@ -17,6 +17,7 @@ import Header from "@/src/components/dashboard/Header";
 import ProfileLoadError from "@/src/components/auth/ProfileLoadError";
 import { LANDING_LOGIN_ROUTE } from "@/src/lib/auth-routing";
 import DashboardQueryProvider from "@/src/components/dashboard/DashboardQueryProvider";
+import { useSidebarPreference } from "@/src/hooks/useSidebarPreference";
 
 function DashboardProviders({ children }: { children: ReactNode }) {
   return (
@@ -56,6 +57,7 @@ export default function DashboardLayout({
   } = useAuth();
   const router = useRouter();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const { collapsed, toggle: toggleSidebarCollapsed } = useSidebarPreference();
   const [darkMode, setDarkMode] = useState(false);
   const [isRetryingProfile, setIsRetryingProfile] = useState(false);
 
@@ -140,11 +142,13 @@ export default function DashboardLayout({
 
   return (
     <DashboardProviders>
-      <div className="min-h-screen bg-transparent">
+      <div className="dashboard-shell min-h-screen bg-transparent" data-sidebar-collapsed={collapsed}>
         <Sidebar
           user={user}
           role={user.role}
           isOpen={isSidebarOpen}
+          collapsed={collapsed}
+          onToggleCollapsed={toggleSidebarCollapsed}
           onClose={() => setIsSidebarOpen(false)}
           onLogout={handleLogout}
         />
@@ -152,14 +156,15 @@ export default function DashboardLayout({
           darkMode={darkMode}
           toggleDarkMode={() => setDarkMode((current) => !current)}
         >
-          <div className="relative flex min-h-screen flex-col md:pl-72">
+          <div className="dashboard-main relative flex min-h-screen flex-col">
             <Header
               user={user}
+              isSidebarOpen={isSidebarOpen}
               darkMode={darkMode}
               onToggleDarkMode={() => setDarkMode((current) => !current)}
               onToggleSidebar={() => setIsSidebarOpen((current) => !current)}
             />
-            <main className="flex-1 bg-background px-4 pb-10 pt-6 text-foreground transition-colors duration-300 md:px-8">
+            <main className="dashboard-page flex-1 bg-background text-foreground">
               {children}
             </main>
           </div>

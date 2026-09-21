@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { createPortal } from "react-dom";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Bell, Globe, Moon, Sparkles, Sun } from "lucide-react";
+import { Bell, Menu, Moon, Sparkles, Sun } from "lucide-react";
 import { useNotifications } from "@/src/contexts/NotificationContext";
 import { User } from "@/src/types/auth";
 import type { Notification } from "@/src/types/notification";
@@ -14,6 +14,7 @@ interface HeaderProps {
   darkMode: boolean;
   onToggleDarkMode: () => void;
   onToggleSidebar: () => void;
+  isSidebarOpen?: boolean;
 }
 
 function formatDate(value?: string | null): string {
@@ -51,6 +52,7 @@ export default function Header({
   darkMode,
   onToggleDarkMode,
   onToggleSidebar,
+  isSidebarOpen = false,
 }: HeaderProps) {
   const {
     notifications,
@@ -227,18 +229,20 @@ export default function Header({
   );
 
   return (
-    <header
+    <header data-dashboard-header
       className={`sticky top-0 z-20 border-b backdrop-blur-xl transition-colors duration-300 ${
         darkMode
           ? "border-slate-800 bg-slate-900/80"
           : "border-slate-200 bg-white/80"
       }`}
     >
-      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 md:px-8">
-        <div className="flex items-center gap-3">
+      <div className="app-header-row">
+        <div className="app-header-heading">
           <button
-            aria-label="Open sidebar"
-            className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border text-lg shadow-sm md:hidden ${
+            aria-label="Ouvrir le menu principal"
+            aria-expanded={isSidebarOpen}
+            aria-controls="dashboard-sidebar"
+            className={`app-hamburger inline-flex h-10 w-10 items-center justify-center rounded-xl border text-lg ${
               darkMode
                 ? "border-slate-700 bg-slate-800 text-white"
                 : "border-slate-200 bg-white text-slate-900"
@@ -246,24 +250,24 @@ export default function Header({
             onClick={onToggleSidebar}
             type="button"
           >
-            <span className="font-mono leading-none">=</span>
+            <Menu size={20} />
           </button>
 
-          <div>
-            <div className={`flex items-center gap-2 text-xs ${darkMode ? "text-slate-400" : "text-slate-500"}`}>
-              <Globe className="h-4 w-4" />
+          <div className="app-header-titles">
+            <div className={`app-header-date flex items-center gap-2 text-xs ${darkMode ? "text-slate-400" : "text-slate-500"}`}>
               <span className="font-medium">{formattedDate}</span>
               <span className={darkMode ? "text-slate-600" : "text-slate-300"}>|</span>
               <span className="font-mono font-semibold text-orange-500">{formattedTime}</span>
             </div>
-            <h1 className={`mt-1 text-2xl font-bold ${darkMode ? "text-white" : "text-slate-900"}`}>
+            <h1 className={`font-semibold ${darkMode ? "text-white" : "text-slate-900"}`}>
               {pageTitle}
             </h1>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="app-header-actions flex items-center gap-2">
           <button
+            aria-label={darkMode ? "Activer le thème clair" : "Activer le thème sombre"}
             className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border transition ${
               darkMode
                 ? "border-slate-700 bg-slate-800 text-orange-300"
@@ -289,10 +293,6 @@ export default function Header({
                 type="button"
               >
                 <Bell className="h-5 w-5" />
-                <span className="absolute -right-1 -top-1 flex h-3 w-3">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-orange-400 opacity-75" />
-                  <span className="relative inline-flex h-3 w-3 rounded-full bg-orange-500" />
-                </span>
                 {unreadCount > 0 && (
                   <span className="absolute -right-2 -top-2 rounded-full bg-orange-500 px-1.5 py-0.5 text-[10px] font-semibold text-white">
                     {unreadCount}
@@ -302,7 +302,7 @@ export default function Header({
 
               {isNotificationsOpen && (
                 <div
-                  className={`absolute right-0 mt-3 w-80 rounded-2xl border p-4 shadow-[var(--shadow-soft)] ${
+                  className={`app-notification-popover absolute right-0 mt-3 w-80 rounded-2xl border p-4 shadow-[var(--shadow-soft)] ${
                     darkMode
                       ? "border-slate-700 bg-slate-800 text-white"
                       : "border-slate-200 bg-white text-slate-900"
@@ -379,11 +379,12 @@ export default function Header({
 
           {isAdmin && (
             <Link
-              className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-amber-400 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-transform hover:scale-[1.02] active:scale-[0.98]"
+              className="app-quick-action"
+              aria-label="Actions rapides"
               href="/dashboard/admin#quick-actions"
             >
               <Sparkles className="h-4 w-4" />
-              Actions rapides
+              <span>Actions rapides</span>
             </Link>
           )}
         </div>

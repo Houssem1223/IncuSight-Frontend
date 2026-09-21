@@ -9,6 +9,13 @@ déjà couvert.
 
 Fichiers actuellement dans `docs/` :
 
+- [`docs/dashboard-ux-polish.md`](docs/dashboard-ux-polish.md) — seconde passe UX :
+  sidebar globale 272/72 px, préférence persistante, tiroir tablette/mobile,
+  tokens sémantiques et densité du workspace, validation et limites.
+
+- [`docs/incubation-workspace.md`](docs/incubation-workspace.md) — refonte du suivi
+  admin : sidebar, onglets URL, responsive, composants réutilisés et validation.
+
 - [`docs/project-overview.md`](docs/project-overview.md) — **à lire en premier** :
   vue d'ensemble du produit (métier, cycle de vie candidature→évaluation→décision→
   incubation), architecture des deux dépôts (frontend + backend), modèle de domaine
@@ -29,6 +36,15 @@ Fichiers actuellement dans `docs/` :
   décisions déjà tranchées, décisions encore ouvertes, table de remplacement bloc par
   bloc de `admin/page.tsx`. ⚠️ Document **historique** : la phase est livrée, il n'est
   plus une description de l'état actuel.
+- [`docs/ai-analysis-frontend.md`](docs/ai-analysis-frontend.md) — analyse IA des
+  évaluations d'une candidature côté frontend (types, client API, hooks TanStack
+  Query, composant admin, états, traduction des erreurs). Le contrat backend fait
+  foi et vit dans `IncuSight-Backend/docs/AI_ANALYSIS.md`.
+- [`docs/startup-vigilance-frontend.md`](docs/startup-vigilance-frontend.md) —
+  vigilance des startups incubées côté frontend (score déterministe + analyse IA
+  d'accompagnement) : types, client API, hooks, composants admin, états dégradés,
+  mapping des sources. Le contrat backend fait foi et vit dans
+  `IncuSight-Backend/docs/STARTUP_VIGILANCE.md`.
 - [`docs/backlog-execution-2026-09.md`](docs/backlog-execution-2026-09.md) — ce qui a
   changé dans les deux dépôts en exécutant les backlogs des audits de septembre 2026
   (migrations, renommages de routes, décisions de conception) et surtout les

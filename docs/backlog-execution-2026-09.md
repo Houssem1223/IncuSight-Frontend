@@ -98,8 +98,9 @@ et les routes du module `reports`.
    découpage ne montre que les correspondances de la page. C'est pourquoi `status`
    est passé au serveur, et pourquoi la recherche texte — qui n'a pas d'équivalent
    backend — est explicitement libellée « Recherche dans cette page ».
-8. **Le loader de tests frontend ne transpile que les `.ts`.** Une règle métier
-   laissée inline dans un `.tsx` n'est pas testable.
+8. **Le loader de tests frontend était limité aux `.ts`.** Depuis la correction
+   IA du 18/09, il accepte aussi `.tsx` et les alias `@/`, pour tester le rendu
+   serveur React. Cela ne remplace pas un harnais DOM pour les interactions.
 9. **Le compteur de non-lues ne se dérive pas d'une liste partielle.** Depuis le
    « charger plus », `notifications` ne contient plus forcément tout : recalculer
    `unreadCount` à partir de ce tableau écraserait le vrai total serveur par le

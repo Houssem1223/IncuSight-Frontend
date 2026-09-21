@@ -1,14 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import RoleGuard from "@/src/components/auth/Roleguard";
 import ConfirmDialog from "@/src/components/dashboard/ConfirmDialog";
+import ApplicationAiAnalysisCard from "@/src/components/dashboard/admin/evaluations/ApplicationAiAnalysisCard";
 import { Button } from "@/src/components/ui/button";
 import { useApplications } from "@/src/contexts/ApplicationContext";
 import { useAuth } from "@/src/contexts/AuthContext";
 import { useEvaluations } from "@/src/contexts/EvaluationContext";
 import type { Application } from "@/src/types/application";
 import { downloadEvaluationReport } from "@/src/lib/reports";
+import { invalidateApplicationAiAnalysis } from "@/src/lib/ai-analysis-query";
 import type { Evaluation } from "@/src/types/evaluation";
 
 function formatDate(value?: string | null): string {
@@ -84,6 +87,7 @@ function AnalysisField({ label, value }: { label: string; value?: string | null 
 }
 
 export default function AdminApplicationEvaluationsManagement() {
+  const queryClient = useQueryClient();
   const { isAuthReady, isAuthenticated, token } = useAuth();
   const {
     applications,
@@ -213,6 +217,7 @@ export default function AdminApplicationEvaluationsManagement() {
 
     try {
       await reopenEvaluation(pendingReopenEvaluation.id);
+      await invalidateApplicationAiAnalysis(queryClient, activeApplicationId);
       await Promise.all([
         fetchEvaluationsByApplication(activeApplicationId),
         fetchApplicationSummary(activeApplicationId),
@@ -230,6 +235,10 @@ export default function AdminApplicationEvaluationsManagement() {
     summariesByApplicationId[activeApplicationId]?.evaluations ||
     [];
   const summary = summariesByApplicationId[activeApplicationId];
+  // Le backend fait foi sur le nombre d'avis soumis. Tant que la synthese n'est
+  // pas chargee, on ne prejuge pas (null) plutot que d'annoncer a tort qu'aucune
+  // evaluation n'a ete soumise et de desactiver l'analyse IA.
+  const submittedEvaluationsCount = summary ? summary.submittedCount : null;
   const writtenAnalyses = applicationEvaluations.filter(hasWrittenAnalysis);
   const submittedCount = applicationEvaluations.filter(
     (evaluation) => normalizeStatus(evaluation.status) === "SUBMITTED",
@@ -455,6 +464,14 @@ export default function AdminApplicationEvaluationsManagement() {
           </p>
         )}
       </section>
+
+      {activeApplicationId && (
+        <ApplicationAiAnalysisCard
+          applicationId={activeApplicationId}
+          key={activeApplicationId}
+          submittedEvaluations={submittedEvaluationsCount}
+        />
+      )}
 
       <ConfirmDialog
         confirmLabel="Rouvrir"
