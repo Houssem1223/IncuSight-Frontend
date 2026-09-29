@@ -1,0 +1,56 @@
+/* Cartes flottantes de la PWA (installation, mise a jour). Tokens existants :
+   surface, border, brand, shadow-soft ; memes arrondis que les boutons. */
+.pwa-prompts {
+  position: fixed;
+  /* Sous l'overlay (39) et le tiroir (40) de la sidebar, et sous les modales
+     (50 a 100) : une carte ne masque jamais la navigation ni un dialogue. */
+  z-index: 38;
+  right: 16px;
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  left: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  pointer-events: none;
+}
+.pwa-prompts:empty { display: none; }
+.pwa-prompt {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px 40px 16px 16px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
+  pointer-events: auto;
+}
+.pwa-prompt-icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: 12px;
+  background: color-mix(in oklab, var(--brand) 12%, transparent);
+  color: var(--brand);
+}
+.pwa-prompt-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  color: var(--foreground-muted);
+  cursor: pointer;
+}
+.pwa-prompt-close:hover { background: var(--background-accent); color: var(--foreground); }
+.pwa-prompt-close:focus-visible { outline: 2px solid color-mix(in oklab, var(--brand) 40%, transparent); outline-offset: 2px; }
+
+@media (min-width: 640px) {
+  .pwa-prompts { left: auto; width: 380px; }
+}

@@ -57,6 +57,8 @@ que le changement qui les rend obsolètes.
 - `recharts@^3.10.1` (un seul graphique aujourd'hui, `TimeseriesCard`, voir
   `docs/dashboard-frontend-context.md` §3)
 - `lucide-react@^1.16.0` (icônes), `tw-animate-css@^1.4.0`
+- `@serwist/turbopack@9.5.12` + `serwist@9.5.12` (PWA : service worker compilé
+  par esbuild au build, voir [`pwa.md`](pwa.md))
 - Tooling : TypeScript 5, Tailwind v4 (config 100% CSS, pas de `tailwind.config.*`),
   ESLint 9 + `eslint-config-next`
 - Pas de Jest/Vitest : `npm test` lance un runner Node natif maison
@@ -281,7 +283,8 @@ mentionné en §4).
 ## 8. Tests
 
 - **Frontend** (`tests/`, 17 fichiers de tests `.mjs` + utilitaires) — tests
-  via un runner Node natif custom (`npm test`), 289 tests.
+  via un runner Node natif custom (`npm test`), 325 tests au 29/09/2026
+  (dont `pwa` : règles de cache du service worker, installation, manifest).
   Auth/session : `api-refresh`, `auth-routing`, `auth-validation`,
   `email-verification`, `password-recovery`, `resend-verification`, `signup`.
   Règles métier : `business-rules` (bornes de notation, politique de mot de passe,
@@ -310,6 +313,9 @@ mentionné en §4).
   `tests/visual/incubation-workspace.mjs` vérifie séparément le build dans Chrome
   aux sept résolutions demandées, menu ouvert/replié : 55 vues principales,
   avec fixtures et captures dans le dossier temporaire.
+  `tests/visual/pwa.mjs` recette la PWA dans Chrome sur le build `standalone`
+  (hors ligne, logout, token expiré, nouvelle version déployée…), voir
+  [`pwa.md`](pwa.md).
   Voir [`dashboard-ux-polish.md`](dashboard-ux-polish.md) pour la seconde passe UX.
 - **Backend** — 39 fichiers `*.spec.ts`, 203 tests (Jest, un `.controller.spec.ts`
   + `.service.spec.ts` par module) + `test/app.e2e-spec.ts` et

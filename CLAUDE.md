@@ -45,6 +45,9 @@ Fichiers actuellement dans `docs/` :
   d'accompagnement) : types, client API, hooks, composants admin, états dégradés,
   mapping des sources. Le contrat backend fait foi et vit dans
   `IncuSight-Backend/docs/STARTUP_VIGILANCE.md`.
+- [`docs/pwa.md`](docs/pwa.md) — PWA installable (Serwist Turbopack) : manifest,
+  service worker, stratégie de cache (aucune page ni réponse d'API en cache),
+  page hors ligne, mises à jour, installation Android/iOS/desktop, recette.
 - [`docs/backlog-execution-2026-09.md`](docs/backlog-execution-2026-09.md) — ce qui a
   changé dans les deux dépôts en exécutant les backlogs des audits de septembre 2026
   (migrations, renommages de routes, décisions de conception) et surtout les
