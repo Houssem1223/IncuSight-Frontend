@@ -72,9 +72,9 @@ export const dashboardNavByRole: Record<UserRole, NavItem[]> = {
     { label: "Mes Startups", href: "/dashboard/startup/applications", icon: Building2 },
     { label: "Mes Candidatures", href: "/dashboard/startup/candidatures", icon: FileText },
     {
-      label: "Suivi incubation",
-      href: "/dashboard/startup/incubation-followups",
-      icon: Activity,
+      label: "Programmes ouverts",
+      href: "/dashboard/startup/programs",
+      icon: FolderKanban,
     },
     { label: "Mon compte", href: "/dashboard/startup/profile", icon: UserCircle },
   ],

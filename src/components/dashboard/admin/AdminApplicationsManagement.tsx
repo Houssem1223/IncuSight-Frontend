@@ -1,13 +1,15 @@
 "use client";
 
 import type { FormEvent } from "react";
-import { useCallback, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import RoleGuard from "@/src/components/auth/Roleguard";
 import { useApplications } from "@/src/contexts/ApplicationContext";
 import { downloadApplicationsCsv, downloadDecisionReport } from "@/src/lib/reports";
 import { useAuth } from "@/src/contexts/AuthContext";
-import { useAutoRefresh } from "@/src/hooks/useAutoRefresh";
+import { fetchApplicationDetail, fetchApplicationList } from "@/src/lib/application-list";
+import { applicationStatusLabel } from "@/src/lib/application-status";
 import { DEFAULT_PAGE_SIZE, getPageCount } from "@/src/lib/pagination";
 import type { Application } from "@/src/types/application";
 import {
@@ -32,30 +34,59 @@ function getInitialStatusFilter(searchParams: URLSearchParams): StatusFilter {
   return value === "PENDING" || value === "ACCEPTED" || value === "REJECTED" ? value : "ALL";
 }
 
-function getInitialSearchTerm(searchParams: URLSearchParams): string {
-  return searchParams.get("search") ?? "";
-}
-
 export default function AdminApplicationsManagement() {
-  const { isAuthReady, isAuthenticated, token } = useAuth();
+  const { isAuthReady, isAuthenticated, token, user } = useAuth();
   const {
-    applications,
-    isApplicationsLoading,
-    applicationsError,
-    applicationsTotal,
-    clearApplicationsError,
-    fetchAllApplications,
     makeDecision,
     reviseDecision,
   } = useApplications();
   const searchParams = useSearchParams();
 
-  const [searchTerm, setSearchTerm] = useState(() => getInitialSearchTerm(searchParams));
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>(() =>
-    getInitialStatusFilter(searchParams),
-  );
+  // URL is the source of truth, including browser back/forward and notifications
+  // received while this page is already mounted.
+  const rawSearch = searchParams.get("search") ?? "";
+  const legacyApplicationId = /^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(rawSearch) ? rawSearch : "";
+  const selectedApplicationId = searchParams.get("application") || legacyApplicationId;
+  const searchTerm = selectedApplicationId ? "" : rawSearch;
+  const statusFilter = getInitialStatusFilter(searchParams);
+  const programId = searchParams.get("programId") || undefined;
+  const pageValue = Number(searchParams.get("page") || 1);
+  const page = Number.isSafeInteger(pageValue) && pageValue > 0 ? pageValue : 1;
+  const updateFilters = (values: Record<string, string | null>, replace = false) => {
+    const params = new URLSearchParams(searchParams.toString());
+    for (const [key, value] of Object.entries(values)) {
+      if (value) params.set(key, value); else params.delete(key);
+    }
+    const query = params.toString();
+    window.history[replace ? "replaceState" : "pushState"](null, "", `${window.location.pathname}${query ? `?${query}` : ""}`);
+  };
+  const setPage = (value: number) => updateFilters({ page: value > 1 ? String(value) : null });
   const [viewMode, setViewMode] = useState<ViewMode>("TABLE");
-  const [page, setPage] = useState(1);
+  const applicationsQuery = useQuery({
+    queryKey: ["applications", user?.id, { page, statusFilter, searchTerm, programId, selectedApplicationId }],
+    queryFn: ({ signal }) => selectedApplicationId
+      ? fetchApplicationDetail(selectedApplicationId, signal)
+      : fetchApplicationList({ page, limit: DEFAULT_PAGE_SIZE, status: statusFilter, search: searchTerm, programId }, signal),
+    enabled: isAuthReady && isAuthenticated && user?.role === "ADMIN",
+    retry: false,
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
+  });
+  const applications = applicationsQuery.data?.data;
+  const applicationsTotal = applicationsQuery.data?.total ?? null;
+  const isApplicationsLoading = applicationsQuery.isPending;
+  const applicationsError = applicationsQuery.error?.message;
+  const refreshApplications = () => applicationsQuery.refetch();
+  useEffect(() => {
+    if (applicationsTotal !== null && page > 1 && !selectedApplicationId) {
+      const lastPage = Math.max(1, Math.ceil(applicationsTotal / DEFAULT_PAGE_SIZE));
+      if (page > lastPage) {
+        const params = new URLSearchParams(window.location.search);
+        params.set("page", String(lastPage));
+        window.history.replaceState(null, "", `${window.location.pathname}?${params}`);
+      }
+    }
+  }, [applicationsTotal, page, selectedApplicationId]);
   const [statusDraftByApplicationId, setStatusDraftByApplicationId] = useState<
     Record<string, string>
   >({});
@@ -74,9 +105,7 @@ export default function AdminApplicationsManagement() {
     setActionError(null);
   };
 
-  // L'export reprend le filtre de statut affiche : ce qui est exporte correspond
-  // a ce que l'utilisateur a sous les yeux. La recherche texte reste cote client,
-  // le backend ne l'expose pas comme filtre.
+  // The report endpoint supports status/program, but not text search yet.
   const handleExportCsv = async () => {
     if (!token) {
       return;
@@ -86,7 +115,7 @@ export default function AdminApplicationsManagement() {
     setIsExportingCsv(true);
 
     try {
-      await downloadApplicationsCsv(token, { status: statusFilter });
+      await downloadApplicationsCsv(token, { status: statusFilter, programId });
     } catch (error) {
       setActionError(
         error instanceof Error ? error.message : "Impossible d'exporter les candidatures.",
@@ -106,6 +135,7 @@ export default function AdminApplicationsManagement() {
 
     try {
       await reviseDecision(applicationToRevise.id, { status, reason });
+      await refreshApplications();
       setApplicationToRevise(null);
       setActionMessage("Decision revisee et changement historise.");
     } catch (error) {
@@ -138,31 +168,9 @@ export default function AdminApplicationsManagement() {
     }
   };
 
-  // Statut et pagination partent au serveur ensemble : filtrer apres coup une page
-  // deja decoupee ne montrerait que les correspondances de cette page.
-  const refreshApplications = useCallback(async () => {
-    clearApplicationsError();
-
-    try {
-      await fetchAllApplications({
-        page,
-        limit: DEFAULT_PAGE_SIZE,
-        ...(statusFilter !== "ALL" ? { status: statusFilter } : {}),
-      });
-    } catch {
-    }
-  }, [clearApplicationsError, fetchAllApplications, page, statusFilter]);
-
-  useAutoRefresh(refreshApplications, {
-    enabled: isAuthReady && isAuthenticated,
-    intervalMs: 60000,
-    refreshOnFocus: true,
-    refreshOnVisibility: true,
-  });
-
   const sortedApplications = useMemo(
     () =>
-      [...applications].sort((left, right) => {
+      [...(applications ?? [])].sort((left, right) => {
         const leftDate = new Date(left.createdAt || 0).getTime();
         const rightDate = new Date(right.createdAt || 0).getTime();
 
@@ -173,31 +181,8 @@ export default function AdminApplicationsManagement() {
 
   const pageCount = getPageCount(applicationsTotal, DEFAULT_PAGE_SIZE);
 
-  // Le statut est filtre par le serveur. La recherche texte, elle, n'a pas
-  // d'equivalent backend : elle reste locale et ne porte donc que sur la page
-  // affichee — c'est dit explicitement dans le libelle du champ.
-  const filteredApplications = useMemo(() => {
-    const query = searchTerm.trim().toLowerCase();
-
-    if (!query) {
-      return sortedApplications;
-    }
-
-    return sortedApplications.filter((application) => {
-      const program = getProgramLabel(application).toLowerCase();
-      const startup = getStartupLabel(application).toLowerCase();
-      const status = normalizeStatus(application.status).toLowerCase();
-      const motivation = (application.motivationLetter || "").toLowerCase();
-
-      return (
-        program.includes(query) ||
-        startup.includes(query) ||
-        status.includes(query) ||
-        motivation.includes(query) ||
-        application.id.toLowerCase().includes(query)
-      );
-    });
-  }, [searchTerm, sortedApplications]);
+  // Search and status are filtered before pagination by the API.
+  const filteredApplications = sortedApplications;
 
   const applicationsByStatus = useMemo(() => {
     const groups: Record<ApplicationStatusColumn, Application[]> = {
@@ -335,30 +320,38 @@ export default function AdminApplicationsManagement() {
               Applications Directory
             </h1>
             <p className="mt-2 text-sm text-foreground-muted">
-              {searchTerm.trim() || statusFilter !== "ALL"
-                ? `${filteredApplications.length} sur ${applications.length} candidatures affichees`
-                : `Total de candidatures: ${applicationsTotal ?? applications.length}`}
+              {isApplicationsLoading ? "Chargement…" : applicationsError ? "Liste indisponible" : selectedApplicationId
+                ? "Candidature ouverte depuis une notification"
+                : `${applicationsTotal === null ? "Total non communiqué par le serveur" : `${applicationsTotal} résultat(s)`} · ${filteredApplications.length} sur cette page`}
             </p>
           </div>
 
           <div className="w-full max-w-sm">
-            <label className="mb-2 block text-xs font-medium uppercase tracking-[0.14em] text-foreground-muted">
-              Recherche dans cette page
+            <label htmlFor="application-search" className="mb-2 block text-xs font-medium uppercase tracking-[0.14em] text-foreground-muted">
+              Rechercher une candidature
             </label>
             <input
               className="w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-foreground outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20"
-              onChange={(event) => setSearchTerm(event.target.value)}
-              placeholder="Programme, startup, statut, motivation..."
+              id="application-search"
+              maxLength={200}
+              onChange={(event) => updateFilters({ search: event.target.value, application: null, page: null }, true)}
+              placeholder="Nom de startup ou programme…"
               type="text"
               value={searchTerm}
             />
           </div>
         </div>
 
+        {selectedApplicationId && (
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-brand/25 bg-orange-50 p-3 text-sm">
+            <span>{applications?.[0] ? `${getStartupLabel(applications[0])} · ${getProgramLabel(applications[0])}` : "Dossier sélectionné"}</span>
+            <button type="button" className="underline" onClick={() => updateFilters({ application: null, search: null, status: null, page: null })}>Voir toutes les candidatures</button>
+          </div>
+        )}
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap gap-2">
             {statusFilterOptions.map((option) => {
-              const isActive = statusFilter === option;
+              const isActive = !selectedApplicationId && statusFilter === option;
 
               return (
                 <button
@@ -368,18 +361,14 @@ export default function AdminApplicationsManagement() {
                       : "border-border bg-white text-foreground hover:border-brand/35 hover:text-brand-strong"
                   }`}
                   key={option}
-                  onClick={() => {
-                    setStatusFilter(option);
-                    // Le filtre part au serveur : rester sur la page 5 d'un autre
-                    // filtre afficherait une page vide.
-                    setPage(1);
-                  }}
+                  aria-pressed={!selectedApplicationId && isActive}
+                  onClick={() => updateFilters({ status: option === "ALL" ? null : option, page: null, application: null, ...(legacyApplicationId ? { search: null } : {}) })}
                   type="button"
                 >
                   {/* Le compte n'est connu que pour le filtre actif : le serveur ne
                       renvoie que les lignes correspondantes. */}
-                  {option}
-                  {isActive && applicationsTotal !== null ? ` (${applicationsTotal})` : ""}
+                  {option === "ALL" ? "Toutes" : applicationStatusLabel(option)}
+                  {isActive && !selectedApplicationId && !isApplicationsLoading && !applicationsError && applicationsTotal !== null ? ` (${applicationsTotal})` : ""}
                 </button>
               );
             })}
@@ -408,7 +397,8 @@ export default function AdminApplicationsManagement() {
 
           <button
             className="dashboard-btn rounded-xl border border-border bg-white px-3 py-1.5 text-xs font-medium text-foreground hover:border-brand/35 hover:text-brand-strong disabled:cursor-not-allowed disabled:opacity-70"
-            disabled={isExportingCsv}
+            disabled={isExportingCsv || Boolean(searchTerm.trim()) || Boolean(selectedApplicationId)}
+            title={searchTerm.trim() || selectedApplicationId ? "L’export serveur porte sur le statut, sans recherche ni sélection individuelle." : undefined}
             onClick={() => void handleExportCsv()}
             type="button"
           >
@@ -438,7 +428,8 @@ export default function AdminApplicationsManagement() {
 
         {!isApplicationsLoading && applicationsError && (
           <p className="mt-6 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-            {applicationsError}
+              {applicationsError}
+              <button className="ml-3 underline" type="button" onClick={() => void refreshApplications()}>Réessayer</button>
           </p>
         )}
 
@@ -466,13 +457,13 @@ export default function AdminApplicationsManagement() {
           />
         )}
 
-        {pageCount > 1 && (
+        {!applicationsError && !selectedApplicationId && (pageCount > 1 || applicationsTotal === null) && (
           <nav
             aria-label="Pagination des candidatures"
             className="mt-6 flex flex-wrap items-center justify-between gap-3"
           >
             <p className="text-sm text-foreground-muted">
-              Page {page} sur {pageCount}
+              Page {page}{applicationsTotal !== null ? ` sur ${pageCount}` : ""}
               {applicationsTotal !== null ? ` — ${applicationsTotal} candidatures` : ""}
             </p>
 
@@ -480,15 +471,15 @@ export default function AdminApplicationsManagement() {
               <button
                 className="dashboard-btn rounded-xl border border-border bg-white px-3 py-1.5 text-xs font-medium text-foreground hover:border-brand/35 disabled:cursor-not-allowed disabled:opacity-60"
                 disabled={page <= 1 || isApplicationsLoading}
-                onClick={() => setPage((current) => Math.max(1, current - 1))}
+                onClick={() => setPage(Math.max(1, page - 1))}
                 type="button"
               >
                 Precedent
               </button>
               <button
                 className="dashboard-btn rounded-xl border border-border bg-white px-3 py-1.5 text-xs font-medium text-foreground hover:border-brand/35 disabled:cursor-not-allowed disabled:opacity-60"
-                disabled={page >= pageCount || isApplicationsLoading}
-                onClick={() => setPage((current) => Math.min(pageCount, current + 1))}
+                disabled={isApplicationsLoading || (applicationsTotal !== null ? page >= pageCount : filteredApplications.length < DEFAULT_PAGE_SIZE)}
+                onClick={() => setPage(page + 1)}
                 type="button"
               >
                 Suivant

@@ -5,8 +5,6 @@ import { type FormEvent, useState } from "react";
 import {
   CheckCircle2,
   CircleAlert,
-  Eye,
-  EyeOff,
   KeyRound,
 } from "lucide-react";
 import {
@@ -38,45 +36,12 @@ type ResetPasswordFormProps = {
   token?: string;
 };
 
-type PasswordVisibilityButtonProps = {
-  isVisible: boolean;
-  isDisabled: boolean;
-  label: string;
-  onToggle: () => void;
-};
-
-function PasswordVisibilityButton({
-  isVisible,
-  isDisabled,
-  label,
-  onToggle,
-}: PasswordVisibilityButtonProps) {
-  return (
-    <button
-      aria-label={`${isVisible ? "Masquer" : "Afficher"} ${label}`}
-      aria-pressed={isVisible}
-      className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-1 text-foreground-muted transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 disabled:opacity-60"
-      disabled={isDisabled}
-      onClick={onToggle}
-      type="button"
-    >
-      {isVisible ? (
-        <EyeOff className="h-5 w-5" aria-hidden="true" />
-      ) : (
-        <Eye className="h-5 w-5" aria-hidden="true" />
-      )}
-    </button>
-  );
-}
-
 export default function ResetPasswordForm({ token }: ResetPasswordFormProps) {
   const [values, setValues] = useState<ResetPasswordFormValues>(initialValues);
   const [fieldErrors, setFieldErrors] = useState<ResetPasswordFieldErrors>({});
   const [requestError, setRequestError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
-  const [showNewPassword, setShowNewPassword] = useState(false);
-  const [showConfirmation, setShowConfirmation] = useState(false);
 
   if (!hasResetPasswordToken(token)) {
     return (
@@ -194,14 +159,8 @@ export default function ResetPasswordForm({ token }: ResetPasswordFormProps) {
                 id="reset-new-password"
                 onChange={(event) => updateField("newPassword", event.target.value)}
                 required
-                type={showNewPassword ? "text" : "password"}
+                type="password"
                 value={values.newPassword}
-              />
-              <PasswordVisibilityButton
-                isDisabled={isSubmitting}
-                isVisible={showNewPassword}
-                label="le nouveau mot de passe"
-                onToggle={() => setShowNewPassword((current) => !current)}
               />
             </div>
           </FormField>
@@ -239,14 +198,8 @@ export default function ResetPasswordForm({ token }: ResetPasswordFormProps) {
                 id="reset-confirm-password"
                 onChange={(event) => updateField("confirmPassword", event.target.value)}
                 required
-                type={showConfirmation ? "text" : "password"}
+                type="password"
                 value={values.confirmPassword}
-              />
-              <PasswordVisibilityButton
-                isDisabled={isSubmitting}
-                isVisible={showConfirmation}
-                label="la confirmation du mot de passe"
-                onToggle={() => setShowConfirmation((current) => !current)}
               />
             </div>
           </FormField>

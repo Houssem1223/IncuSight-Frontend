@@ -234,7 +234,7 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
   );
 
   // La route de revision renvoie la Decision mise a jour, pas la candidature :
-  // on recharge la liste plutot que de recomposer un etat partiel a la main.
+  // l'ecran recharge sa requete filtree plutot que d'ecraser les autres listes.
   const reviseDecision = useCallback(
     async (id: string, payload: ReviseDecisionPayload) => {
       const authToken = getRequiredToken();
@@ -248,9 +248,8 @@ export function ApplicationProvider({ children }: { children: ReactNode }) {
         authToken,
       );
 
-      await fetchAllApplications();
     },
-    [fetchAllApplications, getRequiredToken],
+    [getRequiredToken],
   );
 
   const value = useMemo(

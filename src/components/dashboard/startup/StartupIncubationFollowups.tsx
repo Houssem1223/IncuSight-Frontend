@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { Activity, CheckCircle2, ClipboardList, RefreshCw, Target } from "lucide-react";
 import RoleGuard from "@/src/components/auth/Roleguard";
 import StartupIncubationFollowupsInteractive from "@/src/components/dashboard/startup/StartupIncubationFollowupsInteractive";
@@ -51,7 +52,7 @@ function getReportedProgress(followUp: IncubationFollowUp): number {
   return Math.min(100, Math.max(0, value));
 }
 
-export default function StartupIncubationFollowups() {
+export default function StartupIncubationFollowups({ dashboard = false }: { dashboard?: boolean }) {
   const { isAuthReady, isAuthenticated } = useAuth();
   const {
     myFollowUps,
@@ -68,22 +69,22 @@ export default function StartupIncubationFollowups() {
   }, [clearFollowUpsError, fetchMyFollowUps]);
 
   useEffect(() => {
-    if (!isAuthReady || !isAuthenticated) {
+    if (dashboard || !isAuthReady || !isAuthenticated) {
       return;
     }
 
     void refresh().catch(() => {
     });
-  }, [isAuthReady, isAuthenticated, refresh]);
+  }, [dashboard, isAuthReady, isAuthenticated, refresh]);
 
   const sortedFollowUps = useMemo(
     () =>
-      [...myFollowUps].sort((left, right) => {
+      myFollowUps.filter(followUp => !dashboard || followUp.status === "ACTIVE").sort((left, right) => {
         const leftDate = new Date(left.createdAt || 0).getTime();
         const rightDate = new Date(right.createdAt || 0).getTime();
         return rightDate - leftDate;
       }),
-    [myFollowUps],
+    [dashboard, myFollowUps],
   );
 
   const activeFollowUpId = useMemo(() => {
@@ -98,19 +99,19 @@ export default function StartupIncubationFollowups() {
     sortedFollowUps.find((followUp) => followUp.id === activeFollowUpId) || null;
 
   const summary = useMemo(() => {
-    const objectives = myFollowUps.flatMap((followUp) => followUp.objectives || []);
+    const objectives = sortedFollowUps.flatMap((followUp) => followUp.objectives || []);
 
     return {
-      active: myFollowUps.filter((followUp) => (followUp.status || "ACTIVE") === "ACTIVE")
+      active: sortedFollowUps.filter((followUp) => followUp.status === "ACTIVE")
         .length,
       objectives: objectives.length,
       completedObjectives: objectives.filter((objective) => objective.status === "DONE").length,
-      updates: myFollowUps.reduce(
+      updates: sortedFollowUps.reduce(
         (total, followUp) => total + (followUp.updates?.length || 0),
         0,
       ),
     };
-  }, [myFollowUps]);
+  }, [sortedFollowUps]);
 
   return (
     <RoleGuard allowedRole="STARTUP">
@@ -122,7 +123,7 @@ export default function StartupIncubationFollowups() {
                 Espace startup
               </p>
               <h1 className="mt-2 text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
-                Mon suivi d’incubation
+                {dashboard ? "Mon espace d’incubation" : "Mon suivi d’incubation"}
               </h1>
               <p className="mt-2 max-w-3xl text-sm text-foreground-muted">
                 Consultez vos objectifs, mettez à jour leur progression et partagez régulièrement
@@ -141,6 +142,12 @@ export default function StartupIncubationFollowups() {
               Actualiser
             </Button>
           </div>
+
+          {dashboard && <div className="mt-4 flex flex-wrap gap-4 text-sm text-brand-strong">
+            <Link href="/dashboard/startup/programs" className="underline underline-offset-4">Programmes ouverts</Link>
+            <Link href="/dashboard/startup/candidatures" className="underline underline-offset-4">Mes candidatures</Link>
+            <Link href="/dashboard/startup/incubation-followups" className="underline underline-offset-4">Tous mes suivis</Link>
+          </div>}
 
           <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {[
@@ -229,8 +236,9 @@ export default function StartupIncubationFollowups() {
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
                           <p className="truncate text-sm font-semibold text-foreground">
-                            {followUp.program?.title || followUp.programId}
+                            {followUp.startup?.startupName || "Votre startup"}
                           </p>
+                          <p className="mt-1 truncate text-xs text-foreground-muted">{followUp.program?.title || "Programme d’incubation"}</p>
                           <p className="mt-1 truncate text-xs text-foreground-muted">
                             {phaseLabels[phase]}
                           </p>
@@ -256,7 +264,7 @@ export default function StartupIncubationFollowups() {
             </aside>
 
             {activeFollowUp && (
-              <StartupIncubationFollowupsInteractive followUp={activeFollowUp} />
+              <StartupIncubationFollowupsInteractive key={activeFollowUp.id} followUp={activeFollowUp} />
             )}
           </section>
         )}

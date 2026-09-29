@@ -128,10 +128,10 @@ test("getPageCount ne descend jamais sous une page", () => {
 // --- Routage des notifications ---------------------------------------------
 // Les identifiants etaient renseignes a l'emission et lus par personne.
 
-test("l'admin est route vers la candidature concernee, filtre sur son id", () => {
+test("la notification admin selectionne le dossier sans polluer la recherche", () => {
   const href = resolveNotificationHref({ id: "n1", applicationId: "app-42" }, "ADMIN");
 
-  assert.equal(href, "/dashboard/admin/applications?search=app-42");
+  assert.equal(href, "/dashboard/admin/applications?application=app-42");
 });
 
 test("chaque role est route vers son propre ecran", () => {

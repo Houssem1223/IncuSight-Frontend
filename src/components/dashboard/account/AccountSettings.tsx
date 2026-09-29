@@ -13,6 +13,9 @@ import { useAuth } from "@/src/contexts/AuthContext";
 import { useUsers } from "@/src/contexts/UserContext";
 import { isValidEmail } from "@/src/lib/auth-validation";
 import ChangePasswordForm from "./ChangePasswordForm";
+import { useDashboardTheme } from "@/src/contexts/DashboardThemeContext";
+import { getResendVerificationErrorMessage, RESEND_VERIFICATION_COOLDOWN_SECONDS } from "@/src/lib/resend-verification";
+import { ApiError } from "@/src/lib/api";
 
 // Comme pour le mot de passe, changer d'email incremente `authVersion` cote backend
 // ET repasse le compte en non verifie : la session meurt immediatement et l'acces
@@ -39,7 +42,33 @@ function SettingsSection({
 
 export default function AccountSettings() {
   const { user, logout, loadProfile } = useAuth();
-  const { updateMyProfile, deactivateMyAccount } = useUsers();
+  const { updateMyProfile, deactivateMyAccount, resendVerificationEmail } = useUsers();
+  const { darkMode, toggleDarkMode } = useDashboardTheme();
+  const [isResending, setIsResending] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const [emailMessage, setEmailMessage] = useState("");
+  const [emailError, setEmailError] = useState("");
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setTimeout(() => setResendCooldown(current => Math.max(0, current - 1)), 1000);
+    return () => clearTimeout(timer);
+  }, [resendCooldown]);
+  const handleResend = async () => {
+    if (!user?.email || isResending || resendCooldown > 0) return;
+    setIsResending(true);
+    setEmailMessage("");
+    setEmailError("");
+    try {
+      const result = await resendVerificationEmail(user.email);
+      setEmailMessage(result.message || "L’email de vérification a été envoyé. Consultez votre messagerie.");
+      setResendCooldown(RESEND_VERIFICATION_COOLDOWN_SECONDS);
+    } catch (error) {
+      setEmailError(getResendVerificationErrorMessage(error));
+      if (error instanceof ApiError && error.status === 429) setResendCooldown(error.retryAfterSeconds ?? RESEND_VERIFICATION_COOLDOWN_SECONDS);
+    } finally {
+      setIsResending(false);
+    }
+  };
   const fieldPrefix = useId();
   const logoutTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -146,13 +175,17 @@ export default function AccountSettings() {
         Mon compte
       </p>
       <h1 className="mt-2 text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
-        Parametres du compte
+        Profil / Paramètres
       </h1>
       <p className="mt-2 max-w-2xl text-sm text-foreground-muted">
         Vos informations personnelles, votre mot de passe et la desactivation de votre
         acces.
       </p>
 
+      <div className="mt-5 flex flex-wrap gap-2 text-sm">
+        <span className="rounded-full border border-border px-3 py-1">{user?.role === "ADMIN" ? "Administrateur" : user?.role === "EVALUATOR" ? "Évaluateur" : "Startup"}</span>
+        <span className="rounded-full border border-border px-3 py-1">{user?.isActive === true ? "Compte actif" : user?.isActive === false ? "Compte inactif" : "Statut du compte non communiqué"}</span>
+      </div>
       <div className="mt-6 grid gap-4 lg:grid-cols-2">
         <SettingsSection
           description="Ces informations identifient votre compte sur la plateforme."
@@ -216,9 +249,24 @@ export default function AccountSettings() {
 
         <SettingsSection
           description="Vous serez deconnecte apres le changement, toutes vos sessions etant revoquees."
-          title="Mot de passe"
+          title="Sécurité"
         >
           <ChangePasswordForm />
+        </SettingsSection>
+        <SettingsSection title="Vérification de l’email" description="L’activation du compte et la vérification de l’adresse email sont deux informations distinctes.">
+          <p className={`text-sm font-medium ${user?.isEmailVerified === true ? "text-emerald-700" : "text-amber-700"}`}>
+            {user?.isEmailVerified === true ? "Email vérifié" : user?.isEmailVerified === false ? "Email non vérifié" : "Statut de vérification non communiqué"}
+          </p>
+          <p className="mt-1 break-all text-sm text-foreground-muted">{user?.email}</p>
+          {user?.isEmailVerified === false && <Button className="mt-4" type="button" variant="outline" disabled={isResending || resendCooldown > 0} onClick={() => void handleResend()}>
+            {isResending ? "Envoi…" : resendCooldown > 0 ? `Réessayer dans ${resendCooldown} s` : "Renvoyer l’email de vérification"}
+          </Button>}
+          {emailMessage && <p role="status" className="mt-3 text-sm text-emerald-700">{emailMessage}</p>}
+          <FormErrorMessage message={emailError} />
+        </SettingsSection>
+        <SettingsSection title="Préférences" description="Personnalisez l’affichage de votre espace sur cet appareil.">
+          <Button type="button" variant="outline" aria-pressed={darkMode} onClick={toggleDarkMode}>{darkMode ? "Désactiver le mode sombre" : "Activer le mode sombre"}</Button>
+          {user?.createdAt && <p className="mt-4 text-sm text-foreground-muted">Compte créé le {new Date(user.createdAt).toLocaleDateString("fr-FR")}</p>}
         </SettingsSection>
       </div>
 

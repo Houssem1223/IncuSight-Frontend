@@ -89,7 +89,8 @@ export default function CreateUserModal({
       <FormField htmlFor={fieldId("password")} label="Mot de passe" required>
         <FormInput
           id={fieldId("password")}
-          minLength={6}
+          minLength={8}
+          autoComplete="new-password"
           onChange={(event) => onChange({ ...values, password: event.target.value })}
           placeholder="Mot de passe"
           required

@@ -1,0 +1,652 @@
+"use client";
+
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
+import RoleGuard from "@/src/components/auth/Roleguard";
+import ConfirmDialog from "@/src/components/dashboard/ConfirmDialog";
+import { isProgramOpen } from "@/src/lib/program-availability";
+import ApplicationLockBadge from "@/src/components/dashboard/ApplicationLockBadge";
+import { applicationStatusLabel } from "@/src/lib/application-status";
+import { useApplications } from "@/src/contexts/ApplicationContext";
+import { useAuth } from "@/src/contexts/AuthContext";
+import { usePrograms } from "@/src/contexts/ProgramContext";
+import { useStartups } from "@/src/contexts/StartupContext";
+import type { Application } from "@/src/types/application";
+
+type ApplyConfirmation = {
+  programId: string;
+  startupId: string;
+  startupName: string;
+  programTitle: string;
+  motivationLetter: string;
+};
+
+type DeleteApplicationConfirmation = {
+  applicationId: string;
+  status: string;
+  programLabel: string;
+};
+
+function formatDate(value: string) {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "-";
+  }
+
+  return new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium" }).format(date);
+}
+
+function formatDateTime(value: string) {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "-";
+  }
+
+  return new Intl.DateTimeFormat("fr-FR", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(date);
+}
+
+function normalizeStatus(status?: string) {
+  return (status || "PENDING").toUpperCase();
+}
+
+function getStatusClass(status: string) {
+  if (status === "ACCEPTED") {
+    return "bg-emerald-50 text-emerald-700";
+  }
+
+  if (status === "REJECTED") {
+    return "bg-red-50 text-red-700";
+  }
+
+  return "bg-amber-50 text-amber-700";
+}
+
+export default function StartupPrograms({ embedded = false }: { embedded?: boolean }) {
+  const { isAuthReady, isAuthenticated } = useAuth();
+  const { publicPrograms, isProgramsLoading, programsError, fetchPublicPrograms } = usePrograms();
+  const { myStartups, fetchMyStartups, startupsError, isStartupsLoading } = useStartups();
+  const {
+    myApplications,
+    isApplicationsLoading,
+    applicationsError,
+    fetchMyApplications,
+    createApplication,
+    removeMyApplication,
+  } = useApplications();
+
+  const [loaded, setLoaded] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(timer);
+  }, []);
+  const [selectedStartupByProgram, setSelectedStartupByProgram] = useState<Record<string, string>>(
+    {},
+  );
+  const [motivationByProgram, setMotivationByProgram] = useState<Record<string, string>>({});
+  const [submittingProgramId, setSubmittingProgramId] = useState<string | null>(null);
+  const [deletingApplicationId, setDeletingApplicationId] = useState<string | null>(null);
+  const [applyConfirmation, setApplyConfirmation] = useState<ApplyConfirmation | null>(null);
+  const [deleteApplicationConfirmation, setDeleteApplicationConfirmation] =
+    useState<DeleteApplicationConfirmation | null>(null);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isAuthReady || !isAuthenticated) {
+      return;
+    }
+
+    void Promise.allSettled([fetchPublicPrograms(), fetchMyStartups(), fetchMyApplications()]).then(() => setLoaded(true));
+  }, [isAuthReady, isAuthenticated, fetchPublicPrograms, fetchMyStartups, fetchMyApplications]);
+
+  const sortedPrograms = useMemo(
+    () =>
+      publicPrograms.filter(program => isProgramOpen(program, now)).sort((left, right) => {
+        const leftDate = new Date(left.openDate).getTime();
+        const rightDate = new Date(right.openDate).getTime();
+
+        if (Number.isNaN(leftDate) && Number.isNaN(rightDate)) {
+          return 0;
+        }
+
+        if (Number.isNaN(leftDate)) {
+          return 1;
+        }
+
+        if (Number.isNaN(rightDate)) {
+          return -1;
+        }
+
+        return leftDate - rightDate;
+      }),
+    [publicPrograms, now],
+  );
+
+
+  // Un brouillon ne peut pas candidater (le backend le refuse en 400) : on ne
+  // le propose meme pas dans le choix, plutot que de laisser l'utilisateur se
+  // heurter a l'erreur.
+  const publishableStartups = useMemo(
+    () => myStartups.filter((startup) => startup.status === "PUBLISHED"),
+    [myStartups],
+  );
+
+  const sortedMyApplications = useMemo(
+    () =>
+      [...myApplications]
+        .sort((left, right) => {
+        const leftDate = new Date(left.createdAt || 0).getTime();
+        const rightDate = new Date(right.createdAt || 0).getTime();
+
+        return rightDate - leftDate;
+      }),
+    [myApplications],
+  );
+
+  const applicationByProgramId = useMemo(() => {
+    const map = new Map<string, Application>();
+
+    for (const application of sortedMyApplications) {
+      if (!map.has(application.programId)) {
+        map.set(application.programId, application);
+      }
+    }
+
+    return map;
+  }, [sortedMyApplications]);
+
+  const startupNameById = useMemo(() => {
+    const map = new Map<string, string>();
+
+    for (const startup of myStartups) {
+      map.set(startup.id, startup.startupName);
+    }
+
+    return map;
+  }, [myStartups]);
+
+  const programTitleById = useMemo(() => {
+    const map = new Map<string, string>();
+
+    for (const program of publicPrograms) {
+      map.set(program.id, program.title);
+    }
+
+    return map;
+  }, [publicPrograms]);
+
+  const resetActionFeedback = () => {
+    setActionError(null);
+    setActionMessage(null);
+  };
+
+  const handleApply = (programId: string) => {
+    resetActionFeedback();
+    const program = publicPrograms.find(item => item.id === programId);
+    if (!loaded || !program || !isProgramOpen(program) || startupsError || applicationsError) {
+      setActionError("Ce programme n’est plus ouvert ou vos données ne sont pas disponibles. Actualisez la page.");
+      return;
+    }
+
+    const selectedStartupId = selectedStartupByProgram[programId] || publishableStartups[0]?.id;
+    const motivationLetter = (motivationByProgram[programId] || "").trim();
+
+    if (!selectedStartupId) {
+      setActionError("You need at least one published startup before applying.");
+      return;
+    }
+
+    // Garde-fou : un brouillon ne peut pas etre soumis, meme si l'etat local
+    // contenait encore une ancienne selection non publiee.
+    const startupId = publishableStartups.some((startup) => startup.id === selectedStartupId)
+      ? selectedStartupId
+      : undefined;
+
+    if (!startupId) {
+      setActionError("Ce profil startup est encore un brouillon. Publiez-le avant de candidater.");
+      return;
+    }
+
+    if (!motivationLetter) {
+      setActionError("Motivation letter is required.");
+      return;
+    }
+
+    const startupName = startupNameById.get(startupId) || "Votre startup";
+    const programTitle = programTitleById.get(programId) || "Programme";
+
+    setApplyConfirmation({
+      programId,
+      startupId,
+      startupName,
+      programTitle,
+      motivationLetter,
+    });
+  };
+
+  const cancelApplyConfirmation = () => {
+    if (submittingProgramId) {
+      return;
+    }
+
+    if (applyConfirmation) {
+      console.info("[application] user canceled submit", {
+        programId: applyConfirmation.programId,
+        startupId: applyConfirmation.startupId,
+      });
+    }
+
+    setApplyConfirmation(null);
+  };
+
+  const confirmApply = async () => {
+    if (!applyConfirmation) {
+      return;
+    }
+
+    const { programId, startupId, motivationLetter } = applyConfirmation;
+
+    console.info("[application] user confirmed submit", {
+      programId,
+      startupId,
+    });
+
+    const program = publicPrograms.find(item => item.id === programId);
+    if (!program || !isProgramOpen(program)) {
+      setActionError("Ce programme n’est plus ouvert aux candidatures.");
+      setApplyConfirmation(null);
+      return;
+    }
+    setSubmittingProgramId(programId);
+
+    try {
+      await createApplication({
+        startupId,
+        programId,
+        motivationLetter,
+      });
+
+      await fetchMyApplications();
+      setMotivationByProgram((current) => ({
+        ...current,
+        [programId]: "",
+      }));
+      setActionMessage("Application submitted successfully.");
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : "Unable to submit application.");
+    } finally {
+      setSubmittingProgramId(null);
+      setApplyConfirmation(null);
+    }
+  };
+
+  const handleDeleteApplication = (application: Application) => {
+    resetActionFeedback();
+
+    const status = normalizeStatus(application.status);
+
+    if (status !== "PENDING") {
+      setActionError("Only pending applications can be deleted.");
+      return;
+    }
+
+    setDeleteApplicationConfirmation({
+      applicationId: application.id,
+      status,
+      programLabel:
+        application.program?.title || programTitleById.get(application.programId) || "Programme indisponible",
+    });
+  };
+
+  const cancelDeleteApplication = () => {
+    if (deletingApplicationId) {
+      return;
+    }
+
+    setDeleteApplicationConfirmation(null);
+  };
+
+  const confirmDeleteApplication = async () => {
+    if (!deleteApplicationConfirmation) {
+      return;
+    }
+
+    const { applicationId } = deleteApplicationConfirmation;
+
+    setDeletingApplicationId(applicationId);
+
+    try {
+      await removeMyApplication(applicationId);
+      setActionMessage("Application deleted successfully.");
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : "Unable to delete application.");
+    } finally {
+      setDeletingApplicationId(null);
+      setDeleteApplicationConfirmation(null);
+    }
+  };
+
+  return (
+    <RoleGuard allowedRole="STARTUP">
+      <section className="motion-rise dashboard-surface p-4 sm:p-6">
+        {!embedded && <>
+        <p className="font-mono text-xs uppercase tracking-[0.16em] text-brand-strong">
+          MEDIANET incubateur
+        </p>
+        <h1 className="mt-2 text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
+          Programmes ouverts
+        </h1>
+        <p className="mt-2 max-w-2xl text-sm text-foreground-muted">
+          Co-creation de valeur dans l&apos;ecosysteme entrepreneurial tunisien. Choisis une startup
+          et candidate aux programmes ouverts.
+        </p>
+
+        <Link
+          className="dashboard-btn mt-5 inline-flex rounded-xl bg-brand px-4 py-2 text-sm font-medium text-brand-contrast hover:brightness-95"
+          href="/dashboard/startup/applications"
+        >
+          Gerer mes startups
+        </Link>
+
+        </>}
+        {startupsError && <p role="alert" className="mt-3 text-sm text-red-700">{startupsError}</p>}
+
+        <article className="dashboard-soft-block mt-6 p-4">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h2 className="text-base font-semibold text-foreground">Programmes ouverts MEDIANET</h2>
+              <p className="mt-1 text-sm text-foreground-muted">
+                Consultez les programmes et préparez votre candidature.
+              </p>
+            </div>
+            <p className="text-sm text-foreground-muted">Total: {sortedPrograms.length}</p>
+          </div>
+
+          {(!loaded || isProgramsLoading) && (
+            <div className="mt-4 space-y-2">
+              <div className="h-10 animate-pulse rounded-xl bg-slate-100" />
+              <div className="h-10 animate-pulse rounded-xl bg-slate-100" />
+            </div>
+          )}
+
+          {loaded && !isProgramsLoading && programsError && (
+            <p className="mt-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {programsError}
+            </p>
+          )}
+
+          {loaded && !isProgramsLoading && !programsError && sortedPrograms.length === 0 && (
+            <p className="mt-4 rounded-xl border border-border/75 bg-white px-3 py-3 text-sm text-foreground-muted">
+              Aucun programme public disponible pour le moment.
+            </p>
+          )}
+
+          {loaded && !isProgramsLoading && !programsError && sortedPrograms.length > 0 && (
+            <div className="mt-4 grid gap-3">
+              {sortedPrograms.map((program) => {
+                const openAt = new Date(program.openDate).getTime();
+                const closeAt = new Date(program.closeDate).getTime();
+                const now = Date.now();
+                const hasOpenDate = !Number.isNaN(openAt);
+                const hasCloseDate = !Number.isNaN(closeAt);
+                const isBeforeOpening = hasOpenDate && now < openAt;
+                const isAfterClosing = hasCloseDate && now > closeAt;
+                const isOpen = program.isOpen && !isBeforeOpening && !isAfterClosing;
+                const existingApplication = applicationByProgramId.get(program.id);
+                const startupId =
+                  selectedStartupByProgram[program.id] || publishableStartups[0]?.id || "";
+                const motivationValue = motivationByProgram[program.id] || "";
+                const status = normalizeStatus(existingApplication?.status);
+
+                return (
+                  <article className="dashboard-card p-4" key={program.id}>
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <h3 className="text-base font-semibold text-foreground">{program.title}</h3>
+                        <p className="mt-1 text-sm text-foreground-muted">{program.description}</p>
+                        <p className="mt-2 text-xs text-foreground-muted">
+                          Ouverture: {formatDate(program.openDate)} | Cloture: {formatDate(program.closeDate)}
+                        </p>
+                      </div>
+
+                      <span
+                        className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${
+                          isBeforeOpening
+                            ? "bg-sky-50 text-sky-700"
+                            : isOpen
+                              ? "bg-emerald-50 text-emerald-700"
+                              : "bg-slate-100 text-slate-700"
+                        }`}
+                      >
+                        {isBeforeOpening ? "A VENIR" : isOpen ? "OPEN" : "CLOSED"}
+                      </span>
+                    </div>
+
+                    <div className="mt-4">
+                      {existingApplication ? (
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span
+                            className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${getStatusClass(status)}`}
+                          >
+                            Candidature : {applicationStatusLabel(status)}
+                          </span>
+                          <span className="text-xs text-foreground-muted">
+                            Startup: {startupNameById.get(existingApplication.startupId) || "Startup indisponible"}
+                          </span>
+                        </div>
+                      ) : isBeforeOpening ? (
+                        <span className="inline-flex rounded-xl border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-medium text-sky-700">
+                          Les candidatures seront ouvertes le {formatDateTime(program.openDate)}.
+                        </span>
+                      ) : isOpen && publishableStartups.length > 0 ? (
+                        <div className="grid w-full gap-2 sm:max-w-xl">
+                          <textarea
+                            className="min-h-24 rounded-xl border border-border bg-white px-3 py-2 text-sm text-foreground outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20"
+                            onChange={(event) =>
+                              setMotivationByProgram((current) => ({
+                                ...current,
+                                [program.id]: event.target.value,
+                              }))
+                            }
+                            aria-label={`Lettre de motivation pour ${program.title}`}
+                            placeholder="Lettre de motivation"
+                            value={motivationValue}
+                          />
+
+                          <div className="flex flex-wrap items-center gap-2">
+                            <select
+                              className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-foreground outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20"
+                              onChange={(event) =>
+                                setSelectedStartupByProgram((current) => ({
+                                  ...current,
+                                  [program.id]: event.target.value,
+                                }))
+                              }
+                              aria-label={`Startup pour ${program.title}`}
+                              value={startupId}
+                            >
+                              {publishableStartups.map((startup) => (
+                                <option key={startup.id} value={startup.id}>
+                                  {startup.startupName}
+                                </option>
+                              ))}
+                            </select>
+                            <button
+                              className="dashboard-btn inline-flex rounded-xl bg-brand px-4 py-2 text-sm font-medium text-brand-contrast hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-70"
+                              disabled={!loaded || isStartupsLoading || isApplicationsLoading || Boolean(startupsError || applicationsError) || submittingProgramId === program.id || !motivationValue.trim()}
+                              onClick={() => {
+                                void handleApply(program.id);
+                              }}
+                              type="button"
+                            >
+                              {submittingProgramId === program.id ? "Submitting..." : "Candidater"}
+                            </button>
+                          </div>
+                        </div>
+                      ) : isOpen ? (
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="inline-flex rounded-xl border border-border bg-slate-50 px-4 py-2 text-sm font-medium text-foreground-muted">
+                            {myStartups.length === 0
+                              ? "Cree une startup d'abord"
+                              : "Publiez une startup avant de candidater"}
+                          </span>
+                          <Link
+                            className="dashboard-btn inline-flex rounded-xl border border-border bg-white px-4 py-2 text-sm font-medium text-foreground hover:border-brand/35 hover:text-brand-strong"
+                            href="/dashboard/startup/applications"
+                          >
+                            Ouvrir mes startups
+                          </Link>
+                        </div>
+                      ) : (
+                        <span className="inline-flex rounded-xl border border-border bg-slate-50 px-4 py-2 text-sm font-medium text-foreground-muted">
+                          Programme ferme
+                        </span>
+                      )}
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </article>
+
+        <article className="dashboard-soft-block mt-6 p-4">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h2 className="text-base font-semibold text-foreground">Mes candidatures</h2>
+              <p className="mt-1 text-sm text-foreground-muted">
+                Suis le statut de tes candidatures et supprime celles qui sont en attente.
+              </p>
+            </div>
+            <p className="text-sm text-foreground-muted">Total: {sortedMyApplications.length}</p>
+          </div>
+
+          {(!loaded || isApplicationsLoading) && (
+            <div className="mt-4 space-y-2">
+              <div className="h-10 animate-pulse rounded-xl bg-slate-100" />
+              <div className="h-10 animate-pulse rounded-xl bg-slate-100" />
+            </div>
+          )}
+
+          {loaded && !isApplicationsLoading && applicationsError && (
+            <p className="mt-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {applicationsError}
+            </p>
+          )}
+
+          {loaded && !isApplicationsLoading && !applicationsError && sortedMyApplications.length === 0 && (
+            <p className="mt-4 rounded-xl border border-border/75 bg-white px-3 py-3 text-sm text-foreground-muted">
+              Aucune candidature pour le moment.
+            </p>
+          )}
+
+          {loaded && !isApplicationsLoading && !applicationsError && sortedMyApplications.length > 0 && (
+            <div className="mt-4 grid gap-3">
+              {sortedMyApplications.map((application) => {
+                const status = normalizeStatus(application.status);
+                const canDelete = status === "PENDING";
+                const isDeleting = deletingApplicationId === application.id;
+
+                return (
+                  <article className="dashboard-card p-4" key={application.id}>
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <h3 className="text-base font-semibold text-foreground">
+                          {application.program?.title || programTitleById.get(application.programId) || "Programme indisponible"}
+                        </h3>
+                        <p className="mt-1 text-sm text-foreground-muted">
+                          Startup: {startupNameById.get(application.startupId) || "Startup indisponible"}
+                        </p>
+                        <p className="mt-1 text-xs text-foreground-muted">
+                          Created: {formatDate(application.createdAt || "")}
+                        </p>
+                      </div>
+
+                      <span
+                        className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${getStatusClass(status)}`}
+                      >
+                        {applicationStatusLabel(status)}
+                      </span>
+                      <ApplicationLockBadge application={application} />
+                    </div>
+
+                    <div className="mt-4">
+                      <button
+                        className="dashboard-btn rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-70"
+                        disabled={!canDelete || isDeleting}
+                        onClick={() => {
+                          handleDeleteApplication(application);
+                        }}
+                        type="button"
+                      >
+                        {isDeleting ? "Suppression…" : canDelete ? "Retirer la candidature" : "Retrait indisponible"}
+                      </button>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </article>
+
+        {actionError && (
+          <p className="mt-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            {actionError}
+          </p>
+        )}
+
+        {actionMessage && (
+          <p className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+            {actionMessage}
+          </p>
+        )}
+      </section>
+
+      <ConfirmDialog
+        cancelLabel="Retour"
+        confirmLabel="Confirmer"
+        description={
+          applyConfirmation
+            ? `Valider la candidature au programme \"${applyConfirmation.programTitle}\" avec la startup \"${applyConfirmation.startupName}\" ?`
+            : undefined
+        }
+        isConfirming={Boolean(
+          applyConfirmation && submittingProgramId === applyConfirmation.programId,
+        )}
+        isOpen={Boolean(applyConfirmation)}
+        onCancel={cancelApplyConfirmation}
+        onConfirm={() => {
+          void confirmApply();
+        }}
+        title="Confirmer la candidature"
+      />
+
+      <ConfirmDialog
+        cancelLabel="Annuler"
+        confirmLabel="Supprimer"
+        description={
+          deleteApplicationConfirmation
+            ? `Cette action supprimera votre candidature en attente pour \"${deleteApplicationConfirmation.programLabel}\".`
+            : undefined
+        }
+        isConfirming={Boolean(
+          deleteApplicationConfirmation &&
+            deletingApplicationId === deleteApplicationConfirmation.applicationId,
+        )}
+        isOpen={Boolean(deleteApplicationConfirmation)}
+        onCancel={cancelDeleteApplication}
+        onConfirm={() => {
+          void confirmDeleteApplication();
+        }}
+        title="Supprimer cette candidature en attente ?"
+        tone="danger"
+      />
+    </RoleGuard>
+  );
+}

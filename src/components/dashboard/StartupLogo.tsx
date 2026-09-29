@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/src/contexts/AuthContext";
-import { API_URL } from "@/src/lib/api";
+import { apiFetchBlob } from "@/src/lib/api";
 
 type StartupLogoProps = {
   startupId: string;
@@ -35,10 +35,7 @@ export default function StartupLogo({
     let isActive = true;
     let createdUrl: string | null = null;
 
-    fetch(`${API_URL}/startup/${startupId}/logo`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((response) => (response.ok ? response.blob() : null))
+    apiFetchBlob(`startup/${startupId}/logo`, {}, token)
       .then((blob) => {
         if (!blob || !isActive) {
           return;

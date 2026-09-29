@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   ReactNode,
 } from "react";
@@ -68,8 +69,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [sessionExpired, setSessionExpired] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
+  const profileRequest = useRef<Promise<User> | null>(null);
+  const requestProfile = useCallback((accessToken: string) => {
+    if (profileRequest.current) return profileRequest.current;
+    const request = fetchProfile(accessToken).finally(() => {
+      if (profileRequest.current === request) profileRequest.current = null;
+    });
+    profileRequest.current = request;
+    return request;
+  }, []);
 
   const clearAuthState = useCallback(() => {
+    profileRequest.current = null;
     setToken(null);
     setRefreshToken(null);
     setUser(null);
@@ -80,7 +91,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!token) return;
 
     try {
-      const profile = await fetchProfile(token);
+      const profile = await requestProfile(token);
       setProfileError(null);
       setUser(profile);
     } catch (error) {
@@ -90,7 +101,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       throw error;
     }
-  }, [token]);
+  }, [token, requestProfile]);
 
   const login = useCallback(async (payload: LoginPayload) => {
     setProfileError(null);
@@ -106,7 +117,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSessionExpired(false);
 
     try {
-      const profile = await fetchProfile(data.token);
+      const profile = await requestProfile(data.token);
       setUser(profile);
     } catch (error) {
       if (getAccessToken() && !(error instanceof ApiError && error.status === 409)) {
@@ -115,7 +126,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       throw error;
     }
-  }, []);
+  }, [requestProfile]);
 
   const logout = useCallback(async () => {
     const storedRefreshToken = getRefreshToken();
@@ -197,6 +208,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    // Rotation of the access token does not change the already loaded profile.
+    if (user) return;
     loadProfile()
       .catch(() => {
         // apiFetch centralise le nettoyage des erreurs d'authentification.
@@ -205,7 +218,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .finally(() => {
         setIsAuthReady(true);
       });
-  }, [token, loadProfile, clearAuthState]);
+  }, [token, user, loadProfile, clearAuthState]);
 
   const value = useMemo(
     () => ({

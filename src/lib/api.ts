@@ -48,6 +48,7 @@ type RefreshResult = {
 
 type ApiRequestOptions = RequestInit & {
   _retry?: boolean;
+  _responseType?: "blob";
 };
 
 type JsonResponse = {
@@ -294,7 +295,7 @@ async function requestJson(
   options: ApiRequestOptions = {},
   token?: string | null,
 ): Promise<JsonResponse> {
-  const { _retry, ...requestOptions } = options;
+  const { _retry, _responseType, ...requestOptions } = options;
   void _retry;
 
   const headers = new Headers(requestOptions.headers);
@@ -315,7 +316,7 @@ async function requestJson(
     ...requestOptions,
     headers,
   });
-  const data = await parseResponseData(response);
+  const data = response.ok && _responseType === "blob" ? await response.blob() : await parseResponseData(response);
 
   return { response, data };
 }
@@ -370,9 +371,8 @@ export async function refreshAccessToken(): Promise<string> {
         return result;
       })
       .catch((error: unknown) => {
-        const isRateLimited = error instanceof ApiError && error.status === 429;
-
-        if (sessionIdentity === currentSessionIdentity && !isRateLimited) {
+        const isRejected = error instanceof ApiError && [400, 401, 403].includes(error.status);
+        if (sessionIdentity === currentSessionIdentity && getRefreshToken() === refreshToken && isRejected) {
           expireSessionOnce();
         }
         throw error;
@@ -425,7 +425,7 @@ function readTotalCount(response: Response): number | null {
   }
 
   const parsed = Number(raw);
-  return Number.isFinite(parsed) ? parsed : null;
+  return raw.trim() && Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : null;
 }
 
 /** Variante d'`apiFetch` qui expose aussi le total de pagination. */
@@ -444,6 +444,11 @@ export async function apiFetch<T>(
 ): Promise<T> {
   const { data } = await apiFetchInternal<T>(endpoint, options, token);
   return data;
+}
+
+/** Binary downloads share the same refresh and session-expiration handling. */
+export function apiFetchBlob(endpoint: string, options: RequestInit = {}, token?: string): Promise<Blob> {
+  return apiFetch<Blob>(endpoint, { ...options, _responseType: "blob" }, token);
 }
 
 async function apiFetchInternal<T>(
@@ -490,7 +495,7 @@ async function apiFetchInternal<T>(
       if (error instanceof ApiError) {
         throw error;
       }
-      throw new ApiError(SESSION_EXPIRED_MESSAGE, 401);
+      throw new ApiError("Impossible de renouveler votre session pour le moment. Vérifiez votre connexion puis réessayez.", 0);
     }
   }
 

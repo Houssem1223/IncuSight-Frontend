@@ -26,7 +26,7 @@ export function formatDate(value?: string): string {
 }
 
 export function normalizeStatus(value?: string): string {
-  return (value || "PENDING").toUpperCase();
+  return value?.trim().toUpperCase() || "UNKNOWN";
 }
 
 export function getStatusClass(status: string): string {
@@ -46,7 +46,7 @@ export function getProgramLabel(application: Application): string {
     return application.program.title;
   }
 
-  return application.programId;
+  return "Programme indisponible";
 }
 
 export function getStartupLabel(application: Application): string {
@@ -54,5 +54,5 @@ export function getStartupLabel(application: Application): string {
     return application.startup.startupName;
   }
 
-  return application.startupId;
+  return "Startup indisponible";
 }

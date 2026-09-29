@@ -5,6 +5,7 @@ import {
   useCallback,
   useContext,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -54,6 +55,8 @@ export function StartupProvider({ children }: { children: ReactNode }) {
   const [myStartups, setMyStartups] = useState<Startup[]>([]);
   const [isStartupsLoading, setIsStartupsLoading] = useState(false);
   const [startupsError, setStartupsError] = useState<string | null>(null);
+  const mutationVersion = useRef(0);
+  const latestMyRequest = useRef(0);
 
   const clearStartupsError = useCallback(() => {
     setStartupsError(null);
@@ -83,6 +86,7 @@ export function StartupProvider({ children }: { children: ReactNode }) {
 
   const upsertMyStartup = useCallback(
     (updatedStartup: Startup) => {
+      mutationVersion.current += 1;
       setMyStartups((current) => {
         const existingIndex = current.findIndex((startup) => startup.id === updatedStartup.id);
 
@@ -119,12 +123,17 @@ export function StartupProvider({ children }: { children: ReactNode }) {
   }, [getRequiredToken]);
 
   const fetchMyStartups = useCallback(async () => {
+    const request = ++latestMyRequest.current;
+    const version = mutationVersion.current;
     setIsStartupsLoading(true);
     setStartupsError(null);
 
     try {
       const authToken = getRequiredToken();
       const ownedStartups = await apiFetch<Startup[]>("startup/me", {}, authToken);
+
+      // A list requested before an upload/publication must not replace its result.
+      if (request !== latestMyRequest.current || version !== mutationVersion.current) return ownedStartups;
 
       setMyStartups(ownedStartups);
       setStartups((current) => {
@@ -139,7 +148,7 @@ export function StartupProvider({ children }: { children: ReactNode }) {
       setStartupsError(message);
       throw error;
     } finally {
-      setIsStartupsLoading(false);
+      if (request === latestMyRequest.current) setIsStartupsLoading(false);
     }
   }, [getRequiredToken]);
 
@@ -190,6 +199,10 @@ export function StartupProvider({ children }: { children: ReactNode }) {
         authToken,
       );
 
+      if (startup.id !== startupId || startup.status !== "PUBLISHED") {
+        throw new Error("Le serveur n’a pas confirmé la publication. Votre dossier est conservé ; réessayez ou contactez l’administrateur.");
+      }
+
       upsertMyStartup(startup);
       return startup;
     },
@@ -210,6 +223,10 @@ export function StartupProvider({ children }: { children: ReactNode }) {
         },
         authToken,
       );
+
+      if (startup.id !== startupId || (!startup.pitchDeckOriginalName && !startup.pitchDeckUploadedAt)) {
+        throw new Error("Le serveur n’a pas confirmé l’association du pitch deck à votre startup. Actualisez le dossier avant de publier.");
+      }
 
       upsertMyStartup(startup);
       return startup;

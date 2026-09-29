@@ -22,7 +22,7 @@ const emptyCreateForm: CreateUserFormValues = {
   firstName: "",
   lastName: "",
   email: "",
-  password: "",
+  password: "StrongPass123!",
   role: "STARTUP",
 };
 

@@ -141,7 +141,7 @@ export default function DashboardLayout({
   }
 
   return (
-    <DashboardProviders>
+    <DashboardProviders key={user.id}>
       <div className="dashboard-shell min-h-screen bg-transparent" data-sidebar-collapsed={collapsed}>
         <Sidebar
           user={user}

@@ -60,7 +60,12 @@ try {
       window.__fixtureRequests.push(url.pathname);
       const path = url.pathname.replace(/^\\//, '');
       let data = [];
-      if (path === 'users/me') data = fixture.admin;
+      if (path === 'users/me') data = location.pathname.includes('/dashboard/startup') ? { ...fixture.admin, id: 'startup-user', role: 'STARTUP', isEmailVerified: false } : fixture.admin;
+      else if (path === 'startup/me') data = fixture.followUps.map(f => ({ ...f.startup, status: 'PUBLISHED', ownerId: 'startup-user' }));
+      else if (path === 'incubation-followups/my') data = localStorage.getItem('visual-incubation') === 'none' ? [] : fixture.followUps;
+      else if (path === 'application/me') data = fixture.followUps.map(f => ({ id: f.applicationId, status: 'ACCEPTED', startupId: f.startupId, programId: f.programId, startup: f.startup, program: f.program }));
+      else if (path === 'program/public') data = fixture.programs.map(p => ({ ...p, isOpen: true, openDate: '2020-01-01', closeDate: '2099-12-31', description: 'Un programme pour développer votre startup.' }));
+      else if (path === 'business-rules') data = { MAX_STARTUPS_PER_USER: 5, MAX_ATTACHMENTS_PER_FOLLOWUP_UPDATE: 5 };
       else if (path === 'incubation-followups') data = fixture.followUps;
       else if (path === 'admin/startup-vigilance') data = fixture.list;
       else if (path.startsWith('admin/startup-vigilance/')) data = fixture.detail;
@@ -202,8 +207,36 @@ try {
   await waitFor("document.querySelector('[role=dialog]:not(.app-sidebar)')"); await capture("390x844-objective-dialog");
   const modal = await evaluate("(() => {const r=document.querySelector('[role=dialog]:not(.app-sidebar)').getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom};})()");
   assert.ok(modal.left >= 0 && modal.right <= 390 && modal.top >= 0 && modal.bottom <= 844);
-    await writeFile(join(output, "checks.json"), JSON.stringify({ results, exceptions, modal }, null, 2));
+  const startupViews = [];
+  for (const [width, height] of [[1440,900], [768,1024], [390,844]]) {
+    await send("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: false });
+    for (const mode of ['active', 'none']) {
+      await evaluate(`localStorage.setItem('visual-incubation', '${mode}'); localStorage.setItem('dashboard-dark-mode', 'false')`);
+      await send("Page.navigate", { url: "http://localhost:3106/dashboard/startup" });
+      await waitFor(`Array.from(document.querySelectorAll('h1')).some(el => el.textContent.includes(${JSON.stringify(mode === 'active' ? 'Mon espace' : 'Préparez')}))`);
+      await pause(200);
+      assert.equal(await evaluate("Boolean(document.querySelector('.app-sidebar a[href=\"/dashboard/startup/incubation-followups\"]'))"), false);
+      assert.equal(await evaluate("Boolean(document.querySelector('.app-sidebar a[href=\"/dashboard/startup/programs\"]'))"), true);
+      assert.equal(await evaluate("document.documentElement.scrollWidth > innerWidth"), false, `startup ${mode} overflow at ${width}`);
+      await capture(`startup-${mode}-${width}`);
+      startupViews.push({ mode, width });
+    }
+    for (const [page, heading] of [['programs','Programmes ouverts'], ['candidatures','Mes Candidatures'], ['profile','Profil / Paramètres']]) {
+      await send("Page.navigate", { url: `http://localhost:3106/dashboard/startup/${page}` });
+      await waitFor(`Array.from(document.querySelectorAll('h1')).some(el => el.textContent.includes(${JSON.stringify(heading)}))`);
+      await pause(200);
+      assert.equal(await evaluate("document.documentElement.scrollWidth > innerWidth"), false, `${page} overflow at ${width}`);
+      if (page === 'profile') {
+        assert.equal(await evaluate("document.body.textContent.includes('Email non vérifié')"), true);
+        assert.equal(await evaluate("document.querySelectorAll('input[type=password]').length"), 3);
+      }
+      if (page === 'candidatures') assert.equal(await evaluate("document.body.textContent.includes('Verrouillée')"), true);
+      await capture(`startup-${page}-${width}`);
+      startupViews.push({ page, width });
+    }
+  }
+  await writeFile(join(output, "checks.json"), JSON.stringify({ results, startupViews, exceptions, modal }, null, 2));
   assert.equal(exceptions.length, 0, "no uncaught browser exceptions");
-  console.log(JSON.stringify({ output, views: results.length, exceptions: exceptions.length }));
+  console.log(JSON.stringify({ output, views: results.length, startupViews: startupViews.length, exceptions: exceptions.length }));
   await command("Browser.close");
 } finally { socket?.close(); chrome.kill(); }

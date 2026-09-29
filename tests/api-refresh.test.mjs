@@ -108,6 +108,41 @@ test("un 401 sans refresh token nettoie la session sans appeler le refresh", asy
   expiredEvents.stop();
 });
 
+for (const failure of ["network", 503]) {
+  test(`refresh temporairement indisponible (${failure}) : session conservée sans boucle`, async () => {
+    const expiredEvents = listenForExpiredSessions();
+    let refreshCount = 0;
+    globalThis.fetch = async (url) => {
+      if (requestPath(url) === "/auth/refresh-token") {
+        refreshCount++;
+        if (failure === "network") throw new TypeError("Failed to fetch");
+        return jsonResponse(503, { message: "Service indisponible" });
+      }
+      return jsonResponse(401, { message: "Access token expired" });
+    };
+    await assert.rejects(api.apiFetch("protected/resource"), error => error instanceof api.ApiError && error.status === (failure === "network" ? 0 : 503));
+    assert.equal(refreshCount, 1);
+    assert.equal(expiredEvents.count(), 0);
+    assert.equal(api.getRefreshToken(), "old-refresh");
+    expiredEvents.stop();
+  });
+}
+
+test("un téléchargement binaire renouvelle le token et conserve les octets du fichier", async () => {
+  let refreshCount = 0;
+  globalThis.fetch = async (url, options) => {
+    if (requestPath(url) === "/auth/refresh-token") {
+      refreshCount++;
+      return jsonResponse(200, { token: "binary-access", refreshToken: "binary-refresh" });
+    }
+    if (authorization(options) !== "Bearer binary-access") return jsonResponse(401, { message: "Token expired" });
+    return new Response(new Uint8Array([0, 255, 42]), { headers: { "Content-Type": "application/pdf" } });
+  };
+  const blob = await api.apiFetchBlob("startup/s1/pitch-deck");
+  assert.deepEqual([...new Uint8Array(await blob.arrayBuffer())], [0, 255, 42]);
+  assert.equal(refreshCount, 1);
+});
+
 test("refreshAccessToken sans refresh token ne lance aucun appel HTTP", async () => {
   storage.removeItem(api.REFRESH_TOKEN_KEY);
   let fetchCount = 0;

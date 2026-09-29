@@ -385,10 +385,10 @@ export default function StartupIncubationFollowupsInteractive({
           <div>
             <Badge>Parcours d’incubation</Badge>
             <h2 className="mt-3 text-2xl font-semibold text-foreground">
-              {followUp.program?.title || followUp.programId}
+              {followUp.program?.title || "Programme d’incubation"}
             </h2>
             <p className="mt-1 text-sm text-foreground-muted">
-              {followUp.startup?.startupName || followUp.startupId}
+              {followUp.startup?.startupName || "Votre startup"}
             </p>
           </div>
           <span

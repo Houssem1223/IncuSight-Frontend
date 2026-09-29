@@ -48,7 +48,7 @@ export default function AdminUsersTable({
               <th className="px-4 py-3 font-medium">Nom</th>
               <th className="px-4 py-3 font-medium">Email</th>
               <th className="px-4 py-3 font-medium">Role</th>
-              <th className="px-4 py-3 font-medium">Statut</th>
+              <th className="px-4 py-3 font-medium">Compte / vérification</th>
               <th className="px-4 py-3 font-medium">Actions</th>
             </tr>
           </thead>
@@ -77,7 +77,10 @@ export default function AdminUsersTable({
                           : "bg-emerald-50 text-emerald-700"
                       }`}
                     >
-                      {user.isActive === false ? "Inactif" : "Actif"}
+                      {user.isActive === true ? "Compte actif" : user.isActive === false ? "Compte inactif" : "Statut non communiqué"}
+                    </span>
+                    <span className={`mt-1 block text-xs ${user.isEmailVerified === true ? "text-emerald-700" : "text-amber-700"}`}>
+                      {user.isEmailVerified === true ? "Email vérifié" : user.isEmailVerified === false ? "Email non vérifié" : "Vérification non communiquée"}
                     </span>
                   </td>
                   <td className="px-4 py-3">

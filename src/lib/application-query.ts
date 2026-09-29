@@ -9,6 +9,7 @@ import { withPagination, type PaginationParams } from "./pagination";
 export type ApplicationListQuery = PaginationParams & {
   status?: string;
   programId?: string;
+  search?: string;
 };
 
 /**
@@ -26,6 +27,10 @@ export function buildApplicationListPath(query?: ApplicationListQuery): string {
 
   if (query?.programId) {
     params.set("programId", query.programId);
+  }
+
+  if (query?.search?.trim()) {
+    params.set("search", query.search.trim());
   }
 
   const extra = params.toString();

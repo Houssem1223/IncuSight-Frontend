@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useId, useState } from "react";
+import { FormEvent, useEffect, useId, useRef, useState } from "react";
 import RoleGuard from "@/src/components/auth/Roleguard";
 import ConfirmDialog from "@/src/components/dashboard/ConfirmDialog";
 import StartupLogo from "@/src/components/dashboard/StartupLogo";
@@ -190,6 +190,8 @@ export default function StartupManagement() {
   const [uploadingLogoId, setUploadingLogoId] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const operationBusy = useRef(false);
+  const isBusy = isSaving || Boolean(publishingStartupId || uploadingPitchDeckId || uploadingLogoId || deletingStartupId);
   const formIdPrefix = useId();
   const { MAX_STARTUPS_PER_USER } = useBusinessRules();
   const canCreateMore = myStartups.length < MAX_STARTUPS_PER_USER;
@@ -200,7 +202,7 @@ export default function StartupManagement() {
       return;
     }
 
-    void fetchMyStartups();
+    void fetchMyStartups().catch(() => {});
   }, [isAuthReady, isAuthenticated, fetchMyStartups]);
 
   const resetActionFeedback = () => {
@@ -243,6 +245,9 @@ export default function StartupManagement() {
   };
 
   const performSave = async () => {
+    if (operationBusy.current) return;
+    operationBusy.current = true;
+    resetActionFeedback();
     setIsSaving(true);
 
     try {
@@ -251,27 +256,29 @@ export default function StartupManagement() {
 
       if (editingStartupId) {
         savedStartup = await updateMyStartup(editingStartupId, payload);
-        setActionMessage("Startup profile updated successfully.");
       } else {
         savedStartup = await createStartup(payload);
-        setActionMessage("Startup created successfully.");
       }
+      // Creation succeeded even if the subsequent file transfer fails. Retrying
+      // the form must update this draft, not create another startup.
+      setEditingStartupId(savedStartup.id);
 
       if (pitchDeckFile) {
         try {
-          await uploadPitchDeck(savedStartup.id, pitchDeckFile);
+          savedStartup = await uploadPitchDeck(savedStartup.id, pitchDeckFile);
         } catch (uploadError) {
           // Le profil est deja enregistre a ce stade ; seul le pitch deck a
           // echoue (format refuse...) — on le signale sans annuler le reste.
           setActionError(
             uploadError instanceof Error
-              ? uploadError.message
+              ? `Le profil est enregistré, mais le pitch deck n’a pas pu être associé : ${uploadError.message}`
               : "Le profil a ete enregistre, mais le pitch deck n'a pas pu etre televerse.",
           );
+          return;
         }
       }
 
-      await fetchMyStartups();
+      setActionMessage(`« ${savedStartup.startupName} » est enregistrée${pitchDeckFile ? " avec son pitch deck" : ""}.`);
       setIsFormVisible(false);
       setEditingStartupId(null);
       setForm(emptyForm);
@@ -279,6 +286,7 @@ export default function StartupManagement() {
     } catch (error) {
       setActionError(error instanceof Error ? error.message : "Unable to save startup data.");
     } finally {
+      operationBusy.current = false;
       setIsSaving(false);
       setPendingIncompleteSave(null);
     }
@@ -303,7 +311,7 @@ export default function StartupManagement() {
     const isAlreadyPublished = editingStartup?.status === "PUBLISHED";
 
     if (!isAlreadyPublished) {
-      const hasPitchDeck = Boolean(pitchDeckFile) || Boolean(editingStartup?.pitchDeckOriginalName);
+      const hasPitchDeck = Boolean(pitchDeckFile) || Boolean(editingStartup?.pitchDeckOriginalName || editingStartup?.pitchDeckUploadedAt);
       const missing = getMissingPublicationFields(form, hasPitchDeck);
 
       if (missing.length > 0) {
@@ -341,11 +349,12 @@ export default function StartupManagement() {
   };
 
   const confirmDelete = async () => {
-    if (!startupToDelete) {
+    if (!startupToDelete || operationBusy.current) {
       return;
     }
 
     const startup = startupToDelete;
+    operationBusy.current = true;
 
     setDeletingStartupId(startup.id);
 
@@ -362,12 +371,15 @@ export default function StartupManagement() {
     } catch (error) {
       setActionError(error instanceof Error ? error.message : "Unable to remove startup.");
     } finally {
+      operationBusy.current = false;
       setDeletingStartupId(null);
       setStartupToDelete(null);
     }
   };
 
   const handlePublish = async (startup: Startup) => {
+    if (operationBusy.current) return;
+    operationBusy.current = true;
     resetActionFeedback();
     setPublishingStartupId(startup.id);
 
@@ -379,16 +391,18 @@ export default function StartupManagement() {
       // deck...) : on affiche ce message tel quel plutot qu'un message generique.
       setActionError(error instanceof Error ? error.message : "Impossible de publier cette startup.");
     } finally {
+      operationBusy.current = false;
       setPublishingStartupId(null);
     }
   };
 
   const handleLogoChange = async (startup: Startup, file: File | undefined) => {
-    if (!file) {
+    if (!file || operationBusy.current) {
       return;
     }
 
     resetActionFeedback();
+    operationBusy.current = true;
     setUploadingLogoId(startup.id);
 
     try {
@@ -399,16 +413,18 @@ export default function StartupManagement() {
         error instanceof Error ? error.message : "Impossible de televerser le logo.",
       );
     } finally {
+      operationBusy.current = false;
       setUploadingLogoId(null);
     }
   };
 
   const handlePitchDeckChange = async (startup: Startup, file: File | undefined) => {
-    if (!file) {
+    if (!file || operationBusy.current) {
       return;
     }
 
     resetActionFeedback();
+    operationBusy.current = true;
     setUploadingPitchDeckId(startup.id);
 
     try {
@@ -417,6 +433,7 @@ export default function StartupManagement() {
     } catch (error) {
       setActionError(error instanceof Error ? error.message : "Impossible de televerser le pitch deck.");
     } finally {
+      operationBusy.current = false;
       setUploadingPitchDeckId(null);
     }
   };
@@ -478,7 +495,7 @@ export default function StartupManagement() {
           </div>
         </div>
 
-        {myStartups.length === 0 && !isFormVisible && (
+        {myStartups.length === 0 && !isStartupsLoading && !startupsError && !isFormVisible && (
           <div className="dashboard-soft-block mt-5 bg-gradient-to-br from-brand/10 via-white to-sky-50 p-5">
             <p className="text-sm text-foreground-muted">Vous n&apos;avez pas encore de startup.</p>
             <button
@@ -502,7 +519,7 @@ export default function StartupManagement() {
               // Le backend cree toujours un profil en DRAFT ; un statut absent
               // (objet pas encore rafraichi) est donc traite comme un brouillon.
               const isPublished = startup.status === "PUBLISHED";
-              const hasPitchDeck = Boolean(startup.pitchDeckOriginalName);
+              const hasPitchDeck = Boolean(startup.pitchDeckOriginalName || startup.pitchDeckUploadedAt);
               const hasLogo = Boolean(startup.logoOriginalName);
               const isUploadingLogo = uploadingLogoId === startup.id;
               const fieldPrefix = `${formIdPrefix}-pitch-deck-${startup.id}`;
@@ -549,7 +566,7 @@ export default function StartupManagement() {
                     {hasPitchDeck ? (
                       <div className="mt-2 flex flex-wrap items-center gap-2">
                         <span className="text-sm text-foreground">
-                          {startup.pitchDeckOriginalName}
+                          {startup.pitchDeckOriginalName || "Pitch deck enregistré"}
                           {startup.pitchDeckSize ? ` (${formatFileSize(startup.pitchDeckSize)})` : ""}
                         </span>
                         <button
@@ -572,7 +589,7 @@ export default function StartupManagement() {
                       <input
                         accept={PITCH_DECK_ACCEPT}
                         className="block w-full text-sm text-foreground-muted file:mr-3 file:rounded-lg file:border file:border-border file:bg-white file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-foreground hover:file:border-brand/35 disabled:cursor-not-allowed disabled:opacity-70"
-                        disabled={isUploadingPitchDeck}
+                        disabled={isBusy}
                         id={fieldPrefix}
                         onChange={(event) => {
                           const file = event.target.files?.[0];
@@ -589,11 +606,12 @@ export default function StartupManagement() {
 
                   <div className="mt-4 rounded-xl border border-border/70 bg-white p-3">
                     <p className="text-xs font-medium uppercase tracking-[0.1em] text-foreground-muted">
-                      Logo
+                      Logo · facultatif pour publier
                     </p>
 
                     <div className="mt-2 flex flex-wrap items-center gap-3">
                       <StartupLogo
+                        key={`${startup.id}:${startup.logoUploadedAt ?? ""}`}
                         hasLogo={hasLogo}
                         startupId={startup.id}
                         startupName={startup.startupName}
@@ -623,7 +641,7 @@ export default function StartupManagement() {
                       <input
                         accept=".png,.jpg,.jpeg,.webp"
                         className="block w-full text-sm text-foreground-muted file:mr-3 file:rounded-lg file:border file:border-border file:bg-white file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-foreground hover:file:border-brand/35 disabled:cursor-not-allowed disabled:opacity-70"
-                        disabled={isUploadingLogo}
+                        disabled={isBusy}
                         id={`${fieldPrefix}-logo`}
                         onChange={(event) => {
                           const file = event.target.files?.[0];
@@ -642,6 +660,7 @@ export default function StartupManagement() {
                     <button
                       className="dashboard-btn rounded-xl border border-border bg-white px-4 py-2 text-sm font-medium text-foreground hover:border-brand/35 hover:text-brand-strong"
                       onClick={() => openEditForm(startup)}
+                      disabled={isBusy}
                       type="button"
                     >
                       Modifier
@@ -649,16 +668,16 @@ export default function StartupManagement() {
                     {!isPublished && (
                       <button
                         className="dashboard-btn rounded-xl bg-brand px-4 py-2 text-sm font-medium text-brand-contrast hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-70"
-                        disabled={isPublishing}
+                        disabled={isBusy}
                         onClick={() => void handlePublish(startup)}
                         type="button"
                       >
-                        {isPublishing ? "Publication..." : "Publier"}
+                        {isPublishing ? "Publication en cours…" : isUploadingPitchDeck || isUploadingLogo ? "Téléversement en cours…" : "Publier"}
                       </button>
                     )}
                     <button
                       className="dashboard-btn rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-70"
-                      disabled={isRemoving}
+                      disabled={isBusy}
                       onClick={() => {
                         requestDelete(startup);
                       }}

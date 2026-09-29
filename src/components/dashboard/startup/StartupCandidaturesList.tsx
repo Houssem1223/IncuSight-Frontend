@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo } from "react";
+import ApplicationLockBadge from "@/src/components/dashboard/ApplicationLockBadge";
+import { applicationStatusLabel } from "@/src/lib/application-status";
 import RoleGuard from "@/src/components/auth/Roleguard";
 import DecisionRevisionsHistory from "@/src/components/dashboard/DecisionRevisionsHistory";
 import { useApplications } from "@/src/contexts/ApplicationContext";
@@ -89,19 +91,17 @@ export default function StartupCandidaturesList() {
     return map;
   }, [myStartups]);
 
-  const myStartupIds = useMemo(() => new Set(myStartups.map((startup) => startup.id)), [myStartups]);
 
   const myApplicationsForMyStartups = useMemo(
     () =>
-      myApplications
-        .filter((application) => myStartupIds.has(application.startupId))
+      [...myApplications]
         .sort((left, right) => {
           const leftDate = new Date(left.createdAt || 0).getTime();
           const rightDate = new Date(right.createdAt || 0).getTime();
 
           return rightDate - leftDate;
         }),
-    [myApplications, myStartupIds],
+    [myApplications],
   );
 
   return (
@@ -152,10 +152,10 @@ export default function StartupCandidaturesList() {
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
                         <h3 className="text-base font-semibold text-foreground">
-                          {application.program?.title || application.programId}
+                          {application.program?.title || "Programme indisponible"}
                         </h3>
                         <p className="mt-1 text-sm text-foreground-muted">
-                          Startup: {startupNameById.get(application.startupId) || application.startupId}
+                          Startup: {startupNameById.get(application.startupId) || "Startup indisponible"}
                         </p>
                         <p className="mt-1 text-xs text-foreground-muted">
                           Cree le: {formatDate(application.createdAt)}
@@ -165,8 +165,9 @@ export default function StartupCandidaturesList() {
                       <span
                         className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${getStatusClass(status)}`}
                       >
-                        {status}
+                        {applicationStatusLabel(status)}
                       </span>
+                      <ApplicationLockBadge application={application} />
                     </div>
 
                     <p className="mt-3 text-sm text-foreground-muted">

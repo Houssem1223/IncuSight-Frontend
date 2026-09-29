@@ -20,10 +20,9 @@ export function resolveNotificationHref(
   const evaluationId = notification.evaluationId?.trim();
 
   if (role === "ADMIN") {
-    // La liste des candidatures filtre sur `?search=`, et ce filtre compare aussi
-    // l'id de la candidature : le lien ouvre donc la liste réduite au dossier visé.
+    // Sélection dédiée : un identifiant de dossier n'est pas une recherche texte.
     if (applicationId) {
-      return `/dashboard/admin/applications?search=${encodeURIComponent(applicationId)}`;
+      return `/dashboard/admin/applications?application=${encodeURIComponent(applicationId)}`;
     }
 
     if (evaluationId) {
@@ -57,7 +56,7 @@ export function resolveNotificationHref(
     }
 
     if (programId) {
-      return "/dashboard/startup";
+      return "/dashboard/startup/programs";
     }
 
     return null;

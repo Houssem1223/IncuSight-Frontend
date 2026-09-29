@@ -7,6 +7,7 @@ export type User = {
   email: string;
   role: UserRole;
   isActive?: boolean;
+  isEmailVerified?: boolean;
   createdAt?: string;
   updatedAt?: string;
 };

@@ -1,4 +1,5 @@
 import * as React from "react";
+import PasswordInput from "./PasswordInput";
 
 type InputProps = React.InputHTMLAttributes<HTMLInputElement>;
 
@@ -13,7 +14,9 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(function Input(
     .filter(Boolean)
     .join(" ");
 
-  return <input ref={ref} className={classes} {...props} />;
+  return props.type === "password"
+    ? <PasswordInput ref={ref} className={classes} {...props} />
+    : <input ref={ref} className={classes} {...props} />;
 });
 
 export { Input };
