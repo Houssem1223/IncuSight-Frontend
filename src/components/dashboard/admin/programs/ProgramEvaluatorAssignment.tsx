@@ -51,7 +51,8 @@ export default function ProgramEvaluatorAssignment({
             >
               {evaluatorLabel(evaluator)}
               <button
-                className="ml-1 rounded-full border border-red-200 bg-red-50 px-1.5 py-0.5 text-[10px] font-medium text-red-700 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-70"
+                aria-label={`Retirer ${evaluatorLabel(evaluator)}`}
+                className="ml-1 rounded-full border border-red-200 bg-red-50 px-1.5 py-0.5 text-[10px] font-medium text-red-700 max-md:inline-flex max-md:h-10 max-md:w-10 max-md:items-center max-md:justify-center max-md:p-0 max-md:text-sm hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-70"
                 disabled={isRemoving}
                 onClick={() => onRemove(evaluator.id)}
                 type="button"

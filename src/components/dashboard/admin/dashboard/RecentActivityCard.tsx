@@ -102,7 +102,7 @@ export default function RecentActivityCard({ filters }: RecentActivityCardProps)
             Activite recente
           </CardTitle>
           <Link
-            className="text-xs font-medium text-orange-500 hover:text-orange-400"
+            className="text-xs font-medium text-orange-500 hover:text-orange-400 max-md:inline-flex max-md:min-h-10 max-md:items-center"
             href="/dashboard/admin/notifications"
           >
             Voir tout

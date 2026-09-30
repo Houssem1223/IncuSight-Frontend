@@ -91,13 +91,13 @@ export default function QuickActionsBar({ filters }: QuickActionsBarProps) {
   ];
 
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
       {actions.map((action) => {
         const Icon = action.icon;
 
         return (
           <Link
-            className={`group relative flex items-center gap-4 rounded-2xl border p-5 transition-all duration-300 ${
+            className={`group relative flex flex-col items-start gap-3 rounded-2xl border p-4 transition-all duration-300 sm:flex-row sm:items-center sm:gap-4 sm:p-5 ${
               darkMode
                 ? "border-slate-700 bg-slate-800 hover:border-slate-600"
                 : "border-slate-200 bg-white hover:border-slate-300"
@@ -114,7 +114,7 @@ export default function QuickActionsBar({ filters }: QuickActionsBarProps) {
               {action.label}
             </span>
             <ChevronRight
-              className={`ml-auto h-5 w-5 transition-transform duration-300 group-hover:translate-x-1 ${
+              className={`ml-auto hidden h-5 w-5 transition-transform sm:block duration-300 group-hover:translate-x-1 ${
                 darkMode ? "text-slate-500" : "text-slate-300"
               }`}
             />

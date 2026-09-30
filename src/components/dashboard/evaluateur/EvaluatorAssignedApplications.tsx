@@ -182,7 +182,7 @@ export default function EvaluatorAssignedApplications() {
           Chaque programme est affiche une seule fois avec ses candidatures assignees.
         </p>
 
-        <div className="mt-6 grid gap-4 md:grid-cols-4">
+        <div className="mt-6 grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
           <article className="dashboard-card p-4">
             <p className="text-xs uppercase tracking-[0.12em] text-foreground-muted">Programmes</p>
             <p className="mt-2 text-3xl font-semibold text-foreground">{metrics.totalPrograms}</p>

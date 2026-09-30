@@ -17,6 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/src/components/ui/ca
 import { Button } from "@/src/components/ui/button";
 import { useDashboardTheme } from "@/src/contexts/DashboardThemeContext";
 import { usePrefersReducedMotion } from "@/src/hooks/usePrefersReducedMotion";
+import { useIsNarrowScreen } from "@/src/hooks/useIsNarrowScreen";
 import {
   getAdminTimeseries,
   type AdminTimeseriesResponse,
@@ -155,6 +156,9 @@ export default function TimeseriesCard({ filters }: TimeseriesCardProps) {
   // Recharts anime le trace a l'entree ; on s'aligne sur OverviewKpiCards qui
   // coupe deja ses animations quand le systeme demande un mouvement reduit.
   const prefersReducedMotion = usePrefersReducedMotion();
+  // Sur telephone la largeur ne permet pas MAX_X_LABELS dates : Recharts
+  // saute celles qui se chevaucheraient, en gardant la premiere et la derniere.
+  const isNarrowScreen = useIsNarrowScreen();
   // Le <defs> du degrade et les cibles aria vivent dans le DOM global : des ids
   // stables mais uniques evitent toute collision si le bloc est monte deux fois.
   const domId = useId();
@@ -293,7 +297,8 @@ export default function TimeseriesCard({ filters }: TimeseriesCardProps) {
               <XAxis
                 axisLine={{ stroke: gridColor }}
                 dataKey="label"
-                interval={labelInterval}
+                interval={isNarrowScreen ? "preserveStartEnd" : labelInterval}
+                minTickGap={isNarrowScreen ? 12 : undefined}
                 tick={{ fill: axisColor, fontSize: 12 }}
                 tickLine={false}
                 tickMargin={8}

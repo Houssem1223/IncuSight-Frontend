@@ -38,7 +38,7 @@ export default function ApplicationsTable({
   return (
     <div className="mt-6 overflow-hidden rounded-xl border border-border/75 bg-white/85 shadow-sm">
       <div className="overflow-x-auto">
-        <table className="min-w-full text-left text-sm">
+        <table className="rtable min-w-full text-left text-sm">
           <thead className="bg-slate-50 text-foreground-muted">
             <tr>
               <th className="px-4 py-3 font-medium">Programme</th>
@@ -69,22 +69,22 @@ export default function ApplicationsTable({
               return (
                 <Fragment key={application.id}>
                   <tr className="border-t border-border/60">
-                    <td className="px-4 py-3 text-foreground">{getProgramLabel(application)}</td>
-                    <td className="px-4 py-3 text-foreground-muted">{getStartupLabel(application)}</td>
-                    <td className="max-w-[18rem] px-4 py-3 text-foreground-muted">
+                    <td className="px-4 py-3 text-foreground" data-label="Programme">{getProgramLabel(application)}</td>
+                    <td className="px-4 py-3 text-foreground-muted" data-label="Startup">{getStartupLabel(application)}</td>
+                    <td className="max-w-[18rem] px-4 py-3 text-foreground-muted" data-label="Motivation">
                       <p className="line-clamp-2">{application.motivationLetter || "-"}</p>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3" data-label="Statut">
                       <span
                         className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${getStatusClass(currentStatus)}`}
                       >
                         {currentStatus}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-foreground-muted">
+                    <td className="px-4 py-3 text-foreground-muted" data-label="Cree le">
                       {formatDate(application.createdAt)}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3" data-label="Actions">
                       <div className="flex flex-wrap items-center gap-2">
                         <select
                           className="rounded-lg border border-border bg-white px-2.5 py-1.5 text-xs text-foreground outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20"
@@ -116,7 +116,7 @@ export default function ApplicationsTable({
                   </tr>
 
                   {hasDecision && (
-                    <tr className="bg-slate-50/60">
+                    <tr className="rtable-sub bg-slate-50/60">
                       <td className="px-4 pb-3 text-xs text-foreground-muted" colSpan={6}>
                         <span className="font-medium uppercase tracking-[0.14em]">
                           Decision {normalizeStatus(application.decision?.status)}
@@ -124,7 +124,7 @@ export default function ApplicationsTable({
                         {" - "}
                         {formatDate(application.decision?.decidedAt)}
                         <button
-                          className="dashboard-btn ml-3 rounded-lg border border-border bg-white px-2.5 py-0.5 text-xs font-medium text-foreground hover:border-brand/35 hover:text-brand-strong disabled:opacity-70"
+                          className="dashboard-btn ml-3 mt-2 rounded-lg md:mt-0 border border-border bg-white px-2.5 py-0.5 text-xs font-medium text-foreground hover:border-brand/35 hover:text-brand-strong disabled:opacity-70"
                           disabled={exportingApplicationId === application.id}
                           onClick={() => onExportDecision(application)}
                           type="button"
@@ -134,7 +134,7 @@ export default function ApplicationsTable({
                             : "Fiche decision (PDF)"}
                         </button>
                         <button
-                          className="dashboard-btn ml-2 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-800 hover:border-amber-300"
+                          className="dashboard-btn ml-2 mt-2 rounded-lg md:mt-0 border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-800 hover:border-amber-300"
                           onClick={() => onReviseDecision(application)}
                           type="button"
                         >

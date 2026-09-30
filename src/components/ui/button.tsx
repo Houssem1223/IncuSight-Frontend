@@ -19,7 +19,8 @@ const variantClasses: Record<ButtonVariant, string> = {
 };
 
 const sizeClasses: Record<ButtonSize, string> = {
-  sm: "h-9 px-3",
+  // 40 px au doigt sur telephone, 36 px inchange a partir de sm.
+  sm: "h-10 px-3 sm:h-9",
   md: "h-11 px-4",
   lg: "h-12 px-5 text-base",
 };

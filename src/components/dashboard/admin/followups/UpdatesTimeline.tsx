@@ -127,9 +127,11 @@ export default function UpdatesTimeline({ updates }: UpdatesTimelineProps) {
                       const author = getAttachmentAuthorLabel(attachment);
 
                       return (
-                      <li key={attachment.id}>
+                      <li className="min-w-0 max-w-full" key={attachment.id}>
+                        {/* Un nom de fichier n'a souvent aucun espace : on autorise
+                            la coupure n'importe ou plutot que d'elargir la page. */}
                         <button
-                          className="dashboard-btn rounded-lg border border-border bg-surface px-2.5 py-1 text-xs font-medium text-foreground hover:border-brand/35 hover:text-brand-strong disabled:opacity-70"
+                          className="dashboard-btn max-w-full rounded-lg border border-border bg-surface px-2.5 py-1 text-left text-xs font-medium [overflow-wrap:anywhere] text-foreground hover:border-brand/35 hover:text-brand-strong disabled:opacity-70"
                           disabled={downloadingId === attachment.id}
                           onClick={() =>
                             void handleDownload(attachment.id, attachment.originalName)

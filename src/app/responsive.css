@@ -1,0 +1,111 @@
+/* Adaptation mobile transverse. Voir docs/mobile-responsive.md.
+   Regles generiques en @layer components : un utilitaire Tailwind explicite
+   (min-w-*, text-*, p-*) garde toujours la priorite. */
+
+@layer components {
+  /* Cause racine des contenus rognes : un element de grille garde
+     min-width: auto et elargit sa colonne a la largeur de son plus long
+     contenu insecable (select, URL, nom de fichier), que la surface en
+     overflow: hidden coupe ensuite. Sans effet quand le contenu tient. */
+  .dashboard-page .grid > *,
+  .rgrid > * {
+    min-width: 0;
+  }
+
+  /* break-word ne coupe un mot que s'il deborde et n'intervient pas dans la
+     largeur minimale : les colonnes des tableaux desktop restent identiques. */
+  .dashboard-page,
+  .rwrap {
+    overflow-wrap: break-word;
+  }
+
+  .dashboard-page select {
+    max-width: 100%;
+  }
+
+  @media (max-width: 767px) {
+    /* Boutons d'action des listes : 40 px de haut au doigt. */
+    .dashboard-page .dashboard-btn {
+      min-height: 40px;
+    }
+
+    /* « Voir le detail », « Voir les sources »... : 16 px de haut sinon. */
+    .dashboard-page summary {
+      padding-block: 0.75rem;
+    }
+
+    /* Champs compacts (filtres, echeances, fichiers) : 30 a 37 px sinon. */
+    .dashboard-page :is(select, input:not([type="checkbox"]):not([type="radio"]):not([type="range"])) {
+      min-height: 40px;
+    }
+
+    /* Tableaux en cartes : une ligne = une carte, chaque cellule precedee de
+       son intitule (data-label). Meme markup que sur desktop. */
+    .rtable thead {
+      display: none;
+    }
+
+    .rtable,
+    .rtable tbody,
+    .rtable tr,
+    .rtable td {
+      display: block;
+      width: 100%;
+    }
+
+    .rtable tr {
+      padding: 0.875rem 1rem;
+    }
+
+    .rtable tr + tr {
+      border-top: 1px solid color-mix(in oklab, var(--border) 75%, transparent);
+    }
+
+    /* Ligne complementaire (decision d'une candidature) : meme carte. */
+    .rtable tr.rtable-sub {
+      border-top: 0;
+      padding-top: 0;
+    }
+
+    .rtable td {
+      padding: 0.25rem 0 !important;
+      border: 0 !important;
+    }
+
+    .rtable td[data-label]::before {
+      content: attr(data-label);
+      display: block;
+      margin-bottom: 0.125rem;
+      font-size: 0.6875rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--foreground-muted);
+    }
+
+    /* Premiere cellule = titre de la carte. */
+    .rtable td:first-child {
+      font-weight: 600;
+    }
+
+    .rtable td[data-label]:first-child::before {
+      display: none;
+    }
+  }
+}
+
+/* Hors couche, volontairement : ces deux regles doivent l'emporter sur les
+   utilitaires text-sm / p-6 poses sur les champs et les surfaces. */
+@media (max-width: 767px) {
+  /* Safari iOS zoome sur tout champ de moins de 16 px au focus. */
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  select,
+  textarea {
+    font-size: 16px;
+  }
+
+  /* Page 12 px + surface 24 px laissaient 245 px utiles sur 320 px. */
+  .dashboard-page .dashboard-surface {
+    padding: 1rem;
+  }
+}

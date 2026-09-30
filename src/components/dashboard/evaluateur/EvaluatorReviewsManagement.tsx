@@ -102,7 +102,7 @@ function DossierLink({ label, url }: { label: string; url?: string | null }) {
       </p>
       {href ? (
         <a
-          className="mt-1 block truncate text-sm text-brand-strong underline underline-offset-2"
+          className="mt-1 block truncate text-sm max-md:py-2.5 text-brand-strong underline underline-offset-2"
           href={href.startsWith("http") ? href : `https://${href}`}
           rel="noreferrer noopener"
           target="_blank"
@@ -197,7 +197,7 @@ function ApplicationDossier({
             >
               {isDownloading ? "Telechargement..." : "Telecharger le pitch deck"}
             </button>
-            <span className="text-xs text-foreground-muted">{deckName}</span>
+            <span className="min-w-0 text-xs text-foreground-muted [overflow-wrap:anywhere]">{deckName}</span>
           </div>
         ) : (
           <p className="text-xs italic text-foreground-muted">
@@ -530,7 +530,7 @@ export default function EvaluatorReviewsManagement() {
           Gere tes evaluations et soumets tes recommandations.
         </p>
 
-        <div className="mt-6 grid gap-4 md:grid-cols-4">
+        <div className="mt-6 grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
           <article className="dashboard-card p-4">
             <p className="text-xs uppercase tracking-[0.12em] text-foreground-muted">Total</p>
             <p className="mt-2 text-3xl font-semibold text-foreground">{stats.total}</p>

@@ -4,6 +4,7 @@ import "./globals.css";
 import "./incubation-workspace.css";
 import "./dashboard-shell.css";
 import "./pwa.css";
+import "./responsive.css";
 import { AuthProvider } from "../contexts/AuthContext";
 import { UserProvider } from "../contexts/UserContext";
 import AuthSessionRedirect from "../components/auth/AuthSessionRedirect";

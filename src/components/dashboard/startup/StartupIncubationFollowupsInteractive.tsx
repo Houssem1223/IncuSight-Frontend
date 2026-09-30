@@ -398,7 +398,7 @@ export default function StartupIncubationFollowupsInteractive({
           </span>
         </div>
 
-        <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="mt-6 grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
           <article className="dashboard-soft-block p-4">
             <p className="text-xs uppercase tracking-[0.12em] text-foreground-muted">Phase</p>
             <p className="mt-2 text-sm font-semibold text-foreground">{phaseLabels[phase]}</p>
@@ -634,7 +634,7 @@ export default function StartupIncubationFollowupsInteractive({
                       {(update.attachments || []).map((attachment) => (
                         <li className="flex flex-wrap items-center gap-2" key={attachment.id}>
                           <button
-                            className="dashboard-btn rounded-lg border border-border bg-white px-2.5 py-1 text-xs font-medium text-foreground hover:border-brand/35 hover:text-brand-strong disabled:opacity-70"
+                            className="dashboard-btn max-w-full rounded-lg border border-border bg-white px-2.5 py-1 text-left text-xs font-medium text-foreground [overflow-wrap:anywhere] hover:border-brand/35 hover:text-brand-strong disabled:opacity-70"
                             disabled={downloadingAttachmentId === attachment.id}
                             onClick={() => void handleDownloadAttachment(attachment.id, attachment.originalName)}
                             type="button"
@@ -647,7 +647,7 @@ export default function StartupIncubationFollowupsInteractive({
                             {formatFileSize(attachment.size)}
                           </span>
                           <button
-                            className="text-xs text-red-700 underline underline-offset-2 disabled:opacity-60"
+                            className="text-xs text-red-700 underline underline-offset-2 disabled:opacity-60 max-md:min-h-10 max-md:px-2"
                             disabled={removingAttachmentId === attachment.id || !isEditable}
                             onClick={() => void handleRemoveAttachment(attachment.id)}
                             type="button"

@@ -213,14 +213,14 @@ export default function StartupVigilanceOverview({
       )}
 
       {items.length > 0 && (
-        // Le tableau reste lisible au mobile grâce au défilement horizontal de ce
-        // conteneur : c'est la solution déjà employée par les autres écrans admin.
+        // Sous 768 px, `rtable` affiche chaque ligne en carte (voir
+        // responsive.css) ; le défilement horizontal reste pour les tablettes.
         <div
           className={`mt-6 overflow-x-auto rounded-xl border border-border/75 bg-surface transition-opacity ${
             isStale ? "opacity-60" : ""
           }`}
         >
-          <table className="min-w-full text-left text-sm">
+          <table className="rtable min-w-full text-left text-sm">
             <caption className="sr-only">
               Suivis d’incubation actifs classés par niveau de vigilance
             </caption>
@@ -254,17 +254,17 @@ export default function StartupVigilanceOverview({
                   }`}
                   key={item.followUpId}
                 >
-                  <td className="px-4 py-3 font-medium text-foreground">
+                  <td className="px-4 py-3 font-medium text-foreground" data-label="Startup">
                     {item.startupName}
                   </td>
-                  <td className="px-4 py-3 text-foreground-muted">{item.programName}</td>
-                  <td className="px-4 py-3 text-foreground-muted">
+                  <td className="px-4 py-3 text-foreground-muted" data-label="Programme">{item.programName}</td>
+                  <td className="px-4 py-3 text-foreground-muted" data-label="Phase">
                     {phaseLabels[item.phase] ?? item.phase}
                   </td>
-                  <td className="px-4 py-3 text-foreground-muted">
+                  <td className="px-4 py-3 text-foreground-muted" data-label="Progression">
                     {formatVigilanceProgress(getVigilanceRepresentativeProgress(item))}
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3" data-label="Vigilance">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="font-medium text-foreground">
                         {formatVigilanceScore(item.score)}
@@ -274,7 +274,7 @@ export default function StartupVigilanceOverview({
                       </VigilanceBadge>
                     </div>
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3" data-label="Action">
                     {onSelectFollowUp ? (
                       <Button
                         onClick={() => onSelectFollowUp(item.followUpId)}

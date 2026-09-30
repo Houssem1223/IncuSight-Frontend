@@ -23,7 +23,7 @@ export default function FooterSection() {
 
         <div className="flex flex-wrap items-center justify-center gap-6 text-sm text-muted-foreground">
           {footerLinks.map((link) => (
-            <a className="transition-colors hover:text-foreground" href={link.href} key={link.label}>
+            <a className="inline-flex min-h-10 items-center transition-colors hover:text-foreground md:min-h-0" href={link.href} key={link.label}>
               {link.label}
             </a>
           ))}

@@ -90,7 +90,9 @@
   .app-sidebar[data-open="true"] { transform: translateX(0); visibility: visible; }
   .app-sidebar-toggle { display: none; }
   .app-hamburger,.app-drawer-close { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
-  .app-drawer-close { margin-left: auto; width: 28px; height: 32px; }
+  .app-drawer-close { margin-left: auto; width: 40px; height: 40px; border-radius: 8px; }
+  /* Laisse toujours une bande d'overlay a toucher pour fermer, meme a 320 px. */
+  .app-sidebar { width: min(272px, calc(100vw - 48px)); }
 }
 @media (max-width: 767px) {
   .dashboard-page { padding: 16px 12px 32px; }
@@ -99,8 +101,11 @@
   .app-header-titles h1 { font-size: 16px; }
   .app-header-date { display: none; }
   .app-header-actions { gap: 6px; }
-  .app-header-actions button,.app-hamburger { width: 34px; height: 36px; }
-  .app-quick-action { padding: 10px; }
+  /* 40 px : taille tactile minimale retenue pour toute l'application. */
+  /* Boutons d'icone du header uniquement : un selecteur descendant forcait
+     aussi a 40 px de large chaque notification du menu deroulant. */
+  .app-header-actions > button,.app-header-actions > div > button[aria-expanded],.app-hamburger { width: 40px; height: 40px; }
+  .app-quick-action { width: 40px; height: 40px; padding: 0; justify-content: center; }
   .app-quick-action span { display: none; }
   .app-notification-popover { position: fixed; top: 60px; left: 12px; right: 12px; width: auto; max-height: calc(100dvh - 90px); overflow-y: auto; }
 }

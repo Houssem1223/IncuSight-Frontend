@@ -39,7 +39,7 @@ export default function ProgramsTable({
   return (
     <div className="mt-6 overflow-hidden rounded-xl border border-border/75 bg-white/85 shadow-sm">
       <div className="overflow-x-auto">
-        <table className="min-w-full text-left text-sm">
+        <table className="rtable min-w-full text-left text-sm">
           <thead className="bg-slate-50 text-foreground-muted">
             <tr>
               <th className="px-4 py-3 font-medium">Programme</th>
@@ -70,14 +70,17 @@ export default function ProgramsTable({
 
               return (
                 <tr className="border-t border-border/60" key={program.id}>
-                  <td className="px-4 py-3 text-foreground">{program.title}</td>
-                  <td className="px-4 py-3 text-foreground-muted">{description}</td>
-                  <td className="px-4 py-3 text-foreground-muted">
+                  <td className="px-4 py-3 text-foreground" data-label="Programme">{program.title}</td>
+                  <td className="px-4 py-3 text-foreground-muted" data-label="Description">
+                    {/* Sur mobile, la carte reste compacte : trois lignes de description. */}
+                    <p className="max-md:line-clamp-3">{description}</p>
+                  </td>
+                  <td className="px-4 py-3 text-foreground-muted" data-label="Periode">
                     {openDate}
                     <br />
                     <span className="text-xs">a {closeDate}</span>
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3" data-label="Statut">
                     <span
                       className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${
                         program.isOpen
@@ -88,7 +91,7 @@ export default function ProgramsTable({
                       {program.isOpen ? "Ouvert" : "Ferme"}
                     </span>
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3" data-label="Actions">
                     <div className="flex flex-wrap gap-2">
                       <button
                         className="dashboard-btn rounded-lg border border-border bg-white px-3 py-1.5 text-xs font-medium text-foreground hover:border-brand/35 hover:text-brand-strong"

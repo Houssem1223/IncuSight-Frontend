@@ -414,7 +414,8 @@ export default function AdminApplicationEvaluatorsManagement() {
                                       value={toDateInputValue(assignment?.deadlineAt)}
                                     />
                                     <button
-                                      className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-red-200 text-[10px] text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                                      aria-label={`Retirer ${evaluator.email}`}
+                                      className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-red-200 text-[10px] text-red-600 max-md:h-10 max-md:w-10 max-md:text-sm hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
                                       disabled={removingApplicationId === application.id}
                                       onClick={() => handleRemoveEvaluator(application.id, evaluator.id)}
                                       type="button"

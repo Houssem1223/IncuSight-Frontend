@@ -19,7 +19,7 @@ const PHASE_LABELS: Record<string, string> = {
 
 function StartupCard({ startup }: { startup: ShowcaseStartup }) {
   return (
-    <article className="flex h-full flex-col rounded-2xl border border-border/70 bg-white p-5 shadow-sm">
+    <article className="flex h-full min-w-0 flex-col rounded-2xl border border-border/70 bg-white p-5 shadow-sm">
       <div className="flex items-center gap-3">
         {startup.hasLogo ? (
           // eslint-disable-next-line @next/next/no-img-element -- servi par l'API, hors pipeline next/image.
@@ -68,7 +68,7 @@ function StartupCard({ startup }: { startup: ShowcaseStartup }) {
         <div className="mt-4 flex flex-wrap gap-3 border-t border-border/60 pt-3 text-sm">
           {startup.website && (
             <a
-              className="text-brand-strong underline underline-offset-2"
+              className="inline-flex min-h-10 items-center text-brand-strong underline underline-offset-2 sm:min-h-0"
               href={startup.website}
               rel="noreferrer noopener"
               target="_blank"
@@ -78,7 +78,7 @@ function StartupCard({ startup }: { startup: ShowcaseStartup }) {
           )}
           {startup.linkedinUrl && (
             <a
-              className="text-brand-strong underline underline-offset-2"
+              className="inline-flex min-h-10 items-center text-brand-strong underline underline-offset-2 sm:min-h-0"
               href={startup.linkedinUrl}
               rel="noreferrer noopener"
               target="_blank"

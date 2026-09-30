@@ -45,6 +45,10 @@ Fichiers actuellement dans `docs/` :
   d'accompagnement) : types, client API, hooks, composants admin, états dégradés,
   mapping des sources. Le contrat backend fait foi et vit dans
   `IncuSight-Backend/docs/STARTUP_VIGILANCE.md`.
+- [`docs/mobile-responsive.md`](docs/mobile-responsive.md) — adaptation mobile de
+  toutes les fenêtres (320 à 430 px) : causes racines, tableaux en cartes, cibles
+  de 40 px, outillage d'audit `tests/visual/responsive/` (API factice, 351 mesures,
+  21 scénarios interactifs).
 - [`docs/pwa.md`](docs/pwa.md) — PWA installable (Serwist Turbopack) : manifest,
   service worker, stratégie de cache (aucune page ni réponse d'API en cache),
   page hors ligne, mises à jour, installation Android/iOS/desktop, recette.

@@ -137,7 +137,7 @@ export default function LandingLoginCard({
 
                 <p className="text-right">
                   <Link
-                    className="text-sm font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                    className="-my-2.5 inline-block py-2.5 text-sm font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
                     href="/forgot-password"
                   >
                     Mot de passe oublié ?
@@ -164,7 +164,7 @@ export default function LandingLoginCard({
               <p className="mt-4 text-center text-sm text-muted-foreground">
                 Pas encore de compte ?{" "}
                 <button
-                  className="font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                  className="-my-2.5 inline-block py-2.5 font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
                   onClick={() => selectMode("signup")}
                   type="button"
                 >

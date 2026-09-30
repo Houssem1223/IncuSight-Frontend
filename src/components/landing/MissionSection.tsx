@@ -52,7 +52,7 @@ export default function MissionSection() {
             d&apos;experts et reporting continu pour les equipes dirigeantes.
           </p>
 
-          <div className="grid grid-cols-3 gap-4 pt-4">
+          <div className="grid grid-cols-1 gap-3 pt-4 sm:grid-cols-3 sm:gap-4">
             {missionHighlights.map((item) => (
               <Card
                 className="border-white/10 bg-white/10"

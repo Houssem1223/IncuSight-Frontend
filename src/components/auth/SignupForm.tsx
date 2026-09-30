@@ -316,7 +316,7 @@ export default function SignupForm({ onShowLogin }: SignupFormProps) {
           <p className="mt-5 text-center text-sm text-foreground-muted">
             Vous avez déjà un compte ?{" "}
             <button
-              className="font-medium text-brand-strong hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+              className="-my-2.5 inline-block py-2.5 font-medium text-brand-strong hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
               onClick={onShowLogin}
               type="button"
             >

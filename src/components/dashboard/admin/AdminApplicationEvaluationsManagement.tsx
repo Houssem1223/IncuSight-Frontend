@@ -299,7 +299,7 @@ export default function AdminApplicationEvaluationsManagement() {
         )}
 
         {summary && (
-          <div className="mt-6 grid gap-4 md:grid-cols-3 xl:grid-cols-6">
+          <div className="mt-6 grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 xl:grid-cols-6">
             <article className="dashboard-card p-4">
               <p className="text-xs uppercase tracking-[0.12em] text-foreground-muted">Assignes</p>
               <p className="mt-2 text-2xl font-semibold text-foreground">{summary.totalAssigned}</p>
@@ -342,7 +342,7 @@ export default function AdminApplicationEvaluationsManagement() {
         {!isEvaluationsLoading && applicationEvaluations.length > 0 && (
           <div className="mt-6 overflow-hidden rounded-xl border border-border/75 bg-white/85 shadow-sm">
             <div className="overflow-x-auto">
-              <table className="min-w-full text-left text-sm">
+              <table className="rtable min-w-full text-left text-sm">
                 <thead className="bg-slate-50 text-foreground-muted">
                   <tr>
                     <th className="px-4 py-3 font-medium">Evaluateur</th>
@@ -359,26 +359,26 @@ export default function AdminApplicationEvaluationsManagement() {
 
                     return (
                       <tr className="border-t border-border/60" key={evaluation.id}>
-                        <td className="px-4 py-3 text-foreground">
+                        <td className="px-4 py-3 text-foreground" data-label="Evaluateur">
                           {evaluation.evaluator?.email || evaluation.evaluatorId || "-"}
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-3" data-label="Statut">
                           <span
                             className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${getStatusClass(status)}`}
                           >
                             {status}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-foreground-muted">
+                        <td className="px-4 py-3 text-foreground-muted" data-label="Score global">
                           {evaluation.overallScore ?? "-"}
                         </td>
-                        <td className="px-4 py-3 text-foreground-muted">
+                        <td className="px-4 py-3 text-foreground-muted" data-label="Recommendation">
                           {evaluation.recommendation || "-"}
                         </td>
-                        <td className="px-4 py-3 text-foreground-muted">
+                        <td className="px-4 py-3 text-foreground-muted" data-label="Soumis le">
                           {formatDate(evaluation.submittedAt)}
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-3" data-label={status === "SUBMITTED" ? "Action" : undefined}>
                           {status === "SUBMITTED" && (
                             <Button
                               onClick={() => setPendingReopenEvaluation(evaluation)}

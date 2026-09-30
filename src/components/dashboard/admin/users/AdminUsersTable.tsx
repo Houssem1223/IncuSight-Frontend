@@ -42,7 +42,7 @@ export default function AdminUsersTable({
   return (
     <div className="mt-6 overflow-hidden rounded-xl border border-border/75 bg-white/85 shadow-sm">
       <div className="overflow-x-auto">
-        <table className="min-w-full text-left text-sm">
+        <table className="rtable min-w-full text-left text-sm">
           <thead className="bg-slate-50 text-foreground-muted">
             <tr>
               <th className="px-4 py-3 font-medium">Nom</th>
@@ -66,10 +66,10 @@ export default function AdminUsersTable({
 
               return (
                 <tr className="border-t border-border/60" key={user.id}>
-                  <td className="px-4 py-3 text-foreground">{fullName || "-"}</td>
-                  <td className="px-4 py-3 text-foreground">{user.email}</td>
-                  <td className="px-4 py-3 text-foreground-muted">{user.role}</td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3 text-foreground" data-label="Nom">{fullName || "-"}</td>
+                  <td className="px-4 py-3 text-foreground" data-label="Email">{user.email}</td>
+                  <td className="px-4 py-3 text-foreground-muted" data-label="Role">{user.role}</td>
+                  <td className="px-4 py-3" data-label="Compte / vérification">
                     <span
                       className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${
                         user.isActive === false
@@ -83,7 +83,7 @@ export default function AdminUsersTable({
                       {user.isEmailVerified === true ? "Email vérifié" : user.isEmailVerified === false ? "Email non vérifié" : "Vérification non communiquée"}
                     </span>
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3" data-label="Actions">
                     <div className="flex flex-wrap gap-2">
                       <button
                         className="dashboard-btn rounded-lg border border-border bg-white px-3 py-1.5 text-xs font-medium text-foreground hover:border-brand/35 hover:text-brand-strong"

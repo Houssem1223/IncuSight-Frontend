@@ -104,15 +104,17 @@ export default function FormModal({
       />
 
       <form ref={panel} tabIndex={-1} aria-labelledby={titleId} aria-modal="true" className={mergedPanelClassName} onSubmit={onSubmit} role="dialog">
-        <div className="flex items-start justify-between gap-3">
-          <div>
+        {/* En-tete colle en haut du panneau : sur mobile, un long formulaire
+            defile sans faire disparaitre le titre ni le bouton de fermeture. */}
+        <div className="sticky -top-5 z-10 -mx-5 -mt-5 flex items-start justify-between gap-3 border-b border-transparent bg-surface px-5 pb-2 pt-5 md:static md:m-0 md:p-0">
+          <div className="min-w-0">
             <h2 id={titleId} className="text-lg font-semibold text-foreground">{title}</h2>
             {description && <p className="mt-1 text-xs text-foreground-muted">{description}</p>}
           </div>
 
           <button
             aria-label={typeof closeLabel === "string" ? closeLabel : "Fermer"}
-            className="dashboard-btn rounded-lg border border-border bg-white px-2.5 py-1 text-sm font-medium text-foreground-muted hover:border-brand/35 hover:text-brand-strong disabled:cursor-not-allowed disabled:opacity-70"
+            className="dashboard-btn inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border bg-white text-sm font-medium text-foreground-muted hover:border-brand/35 hover:text-brand-strong disabled:cursor-not-allowed disabled:opacity-70 md:h-auto md:w-auto md:px-2.5 md:py-1"
             disabled={isBusy}
             onClick={handleClose}
             type="button"

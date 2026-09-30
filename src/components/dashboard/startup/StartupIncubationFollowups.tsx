@@ -144,12 +144,12 @@ export default function StartupIncubationFollowups({ dashboard = false }: { dash
           </div>
 
           {dashboard && <div className="mt-4 flex flex-wrap gap-4 text-sm text-brand-strong">
-            <Link href="/dashboard/startup/programs" className="underline underline-offset-4">Programmes ouverts</Link>
-            <Link href="/dashboard/startup/candidatures" className="underline underline-offset-4">Mes candidatures</Link>
-            <Link href="/dashboard/startup/incubation-followups" className="underline underline-offset-4">Tous mes suivis</Link>
+            <Link href="/dashboard/startup/programs" className="underline underline-offset-4 max-md:inline-flex max-md:min-h-10 max-md:items-center">Programmes ouverts</Link>
+            <Link href="/dashboard/startup/candidatures" className="underline underline-offset-4 max-md:inline-flex max-md:min-h-10 max-md:items-center">Mes candidatures</Link>
+            <Link href="/dashboard/startup/incubation-followups" className="underline underline-offset-4 max-md:inline-flex max-md:min-h-10 max-md:items-center">Tous mes suivis</Link>
           </div>}
 
-          <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="mt-6 grid grid-cols-2 gap-3 xl:grid-cols-4">
             {[
               { label: "Suivis actifs", value: summary.active, icon: Activity },
               { label: "Objectifs", value: summary.objectives, icon: Target },
@@ -165,13 +165,14 @@ export default function StartupIncubationFollowups({ dashboard = false }: { dash
               return (
                 <article className="dashboard-card p-4" key={item.label}>
                   <div className="flex items-center justify-between gap-3">
-                    <div>
+                    <div className="min-w-0">
                       <p className="text-xs uppercase tracking-[0.12em] text-foreground-muted">
                         {item.label}
                       </p>
                       <p className="mt-2 text-2xl font-semibold text-foreground">{item.value}</p>
                     </div>
-                    <span className="rounded-xl bg-orange-50 p-2.5 text-brand-strong">
+                    {/* Decorative : masquee en 2 colonnes pour laisser le libelle respirer. */}
+                    <span className="hidden rounded-xl bg-orange-50 p-2.5 text-brand-strong sm:inline-flex">
                       <Icon className="h-5 w-5" />
                     </span>
                   </div>

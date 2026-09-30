@@ -471,7 +471,7 @@ export default function StartupManagement() {
           Cree jusqu&apos;a {MAX_STARTUPS_PER_USER} profils startup et garde-les a jour.
         </p>
 
-        <div className="mt-5 grid gap-3 md:grid-cols-[1fr_1fr_auto]">
+        <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-[1fr_1fr_auto]">
           <article className="dashboard-soft-block p-4">
             <p className="text-xs uppercase tracking-[0.12em] text-foreground-muted">Created</p>
             <p className="mt-1 text-2xl font-semibold text-foreground">{myStartups.length}</p>
@@ -482,7 +482,7 @@ export default function StartupManagement() {
             <p className="mt-1 text-2xl font-semibold text-foreground">{remainingSlots}</p>
           </article>
 
-          <div className="flex items-end md:justify-end">
+          <div className="col-span-2 flex items-end md:col-span-1 md:justify-end">
             {canCreateMore && !isFormVisible && (
               <button
                 className="dashboard-btn w-full rounded-xl bg-brand px-4 py-2 text-sm font-medium text-brand-contrast md:w-auto"
@@ -565,7 +565,8 @@ export default function StartupManagement() {
 
                     {hasPitchDeck ? (
                       <div className="mt-2 flex flex-wrap items-center gap-2">
-                        <span className="text-sm text-foreground">
+                        {/* Nom de fichier sans espace : coupe n'importe ou plutot que rogne. */}
+                        <span className="min-w-0 text-sm text-foreground [overflow-wrap:anywhere]">
                           {startup.pitchDeckOriginalName || "Pitch deck enregistré"}
                           {startup.pitchDeckSize ? ` (${formatFileSize(startup.pitchDeckSize)})` : ""}
                         </span>

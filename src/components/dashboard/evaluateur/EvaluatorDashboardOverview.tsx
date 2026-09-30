@@ -73,7 +73,7 @@ export default function EvaluatorDashboardOverview() {
         </p>
 
         {overviewQuery.isPending && (
-          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mt-6 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
             {[0, 1, 2, 3].map((index) => (
               <div className="h-28 animate-pulse rounded-xl bg-slate-100" key={index} />
             ))}
@@ -97,8 +97,10 @@ export default function EvaluatorDashboardOverview() {
         )}
 
         {overviewQuery.data && (
-          <>
-            <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          // Sur mobile, les echeances (ce qui est a rendre) passent avant les
+          // statistiques de production ; ordre d'origine a partir de md.
+          <div className="flex flex-col">
+            <div className="mt-6 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
               <KpiTile
                 hint="Toutes candidatures confondues"
                 label="Assignees"
@@ -123,7 +125,7 @@ export default function EvaluatorDashboardOverview() {
               />
             </div>
 
-            <div className="mt-4 grid gap-4 md:grid-cols-3">
+            <div className="order-3 mt-4 grid grid-cols-2 gap-3 sm:gap-4 md:order-2 md:grid-cols-3">
               <KpiTile
                 hint="Sur la periode"
                 label="Evaluations soumises"
@@ -134,7 +136,7 @@ export default function EvaluatorDashboardOverview() {
                 label="Score moyen donne"
                 value={overviewQuery.data.production.scoreMoyenDonne || "-"}
               />
-              <article className="dashboard-card p-4">
+              <article className="dashboard-card col-span-2 p-4 md:col-span-1">
                 <p className="text-xs font-medium uppercase tracking-[0.14em] text-foreground-muted">
                   Vos recommandations
                 </p>
@@ -161,13 +163,13 @@ export default function EvaluatorDashboardOverview() {
               </article>
             </div>
 
-            <div className="mt-6">
+            <div className="order-2 mt-6 md:order-3">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <h2 className="text-base font-semibold text-foreground">
                   Prochaines echeances
                 </h2>
                 <Link
-                  className="text-sm text-brand-strong underline underline-offset-2"
+                  className="inline-flex min-h-10 items-center text-sm text-brand-strong underline underline-offset-2 md:min-h-0"
                   href="/dashboard/evaluateur/reviews"
                 >
                   Ouvrir mes reviews
@@ -210,7 +212,7 @@ export default function EvaluatorDashboardOverview() {
                 </ul>
               )}
             </div>
-          </>
+          </div>
         )}
       </section>
     </RoleGuard>

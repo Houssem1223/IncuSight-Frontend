@@ -33,7 +33,7 @@ export default function HeroSection({
               INCUSIGHT | DIGITAL INCUBATOR PLATFORM
             </div>
 
-            <h1 className="text-4xl font-bold leading-tight text-balance text-foreground lg:text-5xl xl:text-6xl">
+            <h1 className="text-3xl font-bold leading-tight text-balance text-foreground sm:text-4xl lg:text-5xl xl:text-6xl">
               Accelerez les decisions d&apos;incubation avec une{" "}
               <span className="text-primary">gouvernance claire.</span>
             </h1>
@@ -59,13 +59,13 @@ export default function HeroSection({
               </Link>
             </div>
 
-            <div className="grid grid-cols-3 gap-8 border-t border-border pt-8">
+            <div className="grid grid-cols-3 gap-4 border-t border-border pt-8 sm:gap-8">
               {heroStats.map((stat) => (
-                <div key={stat.label}>
-                  <p className="mb-1 text-xs uppercase tracking-wider text-muted-foreground">
+                <div className="min-w-0" key={stat.label}>
+                  <p className="mb-1 text-xs uppercase tracking-wider text-muted-foreground [overflow-wrap:anywhere]">
                     {stat.label}
                   </p>
-                  <p className="text-3xl font-bold text-foreground">{stat.value}</p>
+                  <p className="text-2xl font-bold text-foreground sm:text-3xl">{stat.value}</p>
                 </div>
               ))}
             </div>

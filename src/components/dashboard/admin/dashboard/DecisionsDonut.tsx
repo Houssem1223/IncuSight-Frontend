@@ -112,8 +112,8 @@ export default function DecisionsDonut({ filters }: DecisionsDonutProps) {
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="flex items-center gap-8">
-          <div className="relative h-40 w-40">
+        <div className="flex flex-col items-center gap-6 sm:flex-row sm:gap-8">
+          <div className="relative h-40 w-40 shrink-0">
             <svg className="h-40 w-40 -rotate-90" viewBox="0 0 100 100">
               <circle
                 cx="50"
@@ -132,7 +132,7 @@ export default function DecisionsDonut({ filters }: DecisionsDonutProps) {
               <span className={`text-xs ${mutedText}`}>decisions</span>
             </div>
           </div>
-          <div className="flex-1 space-y-4">
+          <div className="w-full flex-1 space-y-4">
             {segments.map((segment) => (
               <div className="flex items-center justify-between" key={segment.key}>
                 <div className="flex items-center gap-3">

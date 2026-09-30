@@ -82,7 +82,7 @@ export default function ConfirmDialog({
       >
         <button
           aria-label="Fermer"
-          className="dashboard-btn absolute right-3 top-3 rounded-lg border border-border bg-white px-2.5 py-1 text-sm font-medium text-foreground-muted hover:border-brand/35 hover:text-brand-strong"
+          className="dashboard-btn absolute right-3 top-3 inline-flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-white text-sm font-medium text-foreground-muted hover:border-brand/35 hover:text-brand-strong md:h-auto md:w-auto md:px-2.5 md:py-1"
           disabled={!isOpen || isConfirming}
           onClick={onCancel}
           type="button"
@@ -90,7 +90,7 @@ export default function ConfirmDialog({
           x
         </button>
 
-        <h2 id={titleId} className="pr-9 text-lg font-semibold text-foreground">{title}</h2>
+        <h2 id={titleId} className="pr-12 text-lg md:pr-9 font-semibold text-foreground">{title}</h2>
         {description && <p id={descriptionId} className="mt-2 text-sm text-foreground-muted">{description}</p>}
 
         <div className="mt-5 flex flex-wrap justify-end gap-2">

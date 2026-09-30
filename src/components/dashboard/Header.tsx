@@ -6,6 +6,7 @@ import { createPortal } from "react-dom";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Bell, Menu, Moon, Sparkles, Sun } from "lucide-react";
 import { useNotifications } from "@/src/contexts/NotificationContext";
+import { dashboardNavByRole } from "@/src/lib/dashboard-nav";
 import { User } from "@/src/types/auth";
 import type { Notification } from "@/src/types/notification";
 
@@ -207,10 +208,15 @@ export default function Header({
       "/dashboard/admin/application-evaluations": "Synthese reviews",
       "/dashboard/admin/incubation-followups": "Suivi incubation",
       "/dashboard/startup/incubation-followups": "Suivi incubation",
+      "/dashboard/startup": "Tableau de bord",
+      "/dashboard/evaluateur": "Tableau de bord",
     };
 
-    return routes[pathname] ?? "Tableau de bord";
-  }, [pathname]);
+    // Sur mobile ce titre est le seul repere de l'ecran : a defaut d'entree
+    // dediee, on reprend le libelle de la rubrique de navigation du role.
+    const navLabel = dashboardNavByRole[user.role]?.find((item) => item.href === pathname)?.label;
+    return routes[pathname] ?? navLabel ?? "Tableau de bord";
+  }, [pathname, user.role]);
 
   const formattedDate = useMemo(
     () =>
@@ -395,12 +401,14 @@ export default function Header({
         createPortal(
           <div
             aria-modal="true"
-            className="fixed inset-0 z-[100]"
+            className="fixed inset-0 z-[100] overflow-y-auto"
             onClick={handleCloseNotification}
             role="dialog"
           >
-            <div className="absolute inset-0 bg-slate-900/45 backdrop-blur-md" />
-            <div className="relative z-10 flex min-h-screen items-center justify-center p-4 md:p-8">
+            <div className="fixed inset-0 bg-slate-900/45 backdrop-blur-md" />
+            {/* min-h-full + defilement du conteneur : un message long reste
+                lisible en entier, y compris sous la barre d'adresse mobile. */}
+            <div className="relative z-10 flex min-h-full items-center justify-center p-4 md:p-8">
               <div
                 className={`w-full max-w-lg rounded-2xl border p-5 shadow-[var(--shadow-soft)] ${
                   darkMode
@@ -420,7 +428,7 @@ export default function Header({
                   </div>
 
                   <button
-                    className={`rounded-full border px-3 py-1 text-xs font-semibold ${
+                    className={`min-h-10 shrink-0 rounded-full border px-4 py-1 text-xs font-semibold md:min-h-0 md:px-3 ${
                       darkMode
                         ? "border-slate-700 bg-slate-700 text-white"
                         : "border-slate-200 bg-white text-slate-900"

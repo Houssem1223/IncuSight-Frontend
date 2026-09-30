@@ -59,7 +59,7 @@ export default function StartupDashboardOverview() {
 
   if (overviewQuery.isPending) {
     return (
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         {[0, 1, 2, 3].map((index) => (
           <div className="h-28 animate-pulse rounded-xl bg-slate-100" key={index} />
         ))}
@@ -87,7 +87,7 @@ export default function StartupDashboardOverview() {
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <Tile label="Candidatures" value={data.candidatures.total} />
         <Tile label="En attente" value={data.candidatures.enAttente} />
         <Tile label="Acceptees" tone="success" value={data.candidatures.acceptees} />

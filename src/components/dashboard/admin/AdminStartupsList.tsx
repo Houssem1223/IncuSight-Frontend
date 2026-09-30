@@ -18,7 +18,7 @@ function ExternalLinkChip({ label, url }: { label: string; url?: string | null }
 
   return (
     <a
-      className="inline-flex rounded-full border border-border px-2 py-0.5 text-xs text-brand-strong hover:border-brand/35"
+      className="inline-flex items-center rounded-full border border-border px-2 py-0.5 text-xs text-brand-strong hover:border-brand/35 max-md:min-h-10 max-md:px-3.5"
       href={href.startsWith("http") ? href : `https://${href}`}
       rel="noreferrer noopener"
       target="_blank"
@@ -171,7 +171,7 @@ export default function AdminStartupsList() {
       {!isStartupsLoading && !startupsError && (
         <div className="mt-6 overflow-hidden rounded-xl border border-border/75 bg-white/85 shadow-sm">
           <div className="overflow-x-auto">
-            <table className="min-w-full text-left text-sm">
+            <table className="rtable min-w-full text-left text-sm">
               <thead className="bg-slate-50 text-foreground-muted">
                 <tr>
                   <th className="px-4 py-3 font-medium">Startup</th>
@@ -211,7 +211,7 @@ export default function AdminStartupsList() {
 
                   return (
                     <tr className="border-t border-border/60" key={startup.id}>
-                      <td className="px-4 py-3 text-foreground">
+                      <td className="px-4 py-3 text-foreground" data-label="Startup">
                         <div className="flex items-center gap-2.5">
                           <StartupLogo
                             className="h-8 w-8 flex-none rounded-lg border border-border/70 object-contain"
@@ -222,17 +222,17 @@ export default function AdminStartupsList() {
                           <span>{startupName}</span>
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-foreground-muted">{sector}</td>
-                      <td className="px-4 py-3 text-foreground-muted">{stage}</td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3 text-foreground-muted" data-label="Sector">{sector}</td>
+                      <td className="px-4 py-3 text-foreground-muted" data-label="Stage">{stage}</td>
+                      <td className="px-4 py-3" data-label="Liens">
                         <div className="flex flex-wrap gap-1.5">
                           <ExternalLinkChip label="Site" url={startup.website} />
                           <ExternalLinkChip label="LinkedIn" url={startup.linkedinUrl} />
                           <ExternalLinkChip label="Deck" url={startup.deckUrl} />
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-foreground-muted">{owner}</td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3 text-foreground-muted" data-label="Owner">{owner}</td>
+                      <td className="px-4 py-3" data-label="Status">
                         <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${statusClass}`}>
                           {status}
                         </span>

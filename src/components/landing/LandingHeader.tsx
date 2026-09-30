@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Rocket } from "lucide-react";
 import { buttonVariants } from "@/src/components/ui/button";
+import LandingMobileMenu from "./LandingMobileMenu";
 
 const navItems = [
   { label: "Fonctionnalites", href: "#features" },
@@ -40,6 +41,8 @@ export default function LandingHeader() {
             Contact
           </Link>
         </nav>
+
+        <LandingMobileMenu items={navItems} />
       </div>
     </header>
   );

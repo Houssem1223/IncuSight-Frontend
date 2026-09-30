@@ -137,7 +137,7 @@
 }
 @container (max-width: 480px) {
   .inc-factor-grid { grid-template-columns: 1fr; }
-  .inc-timeline-row { grid-template-columns: 1fr; gap: 8px; }
+  .inc-timeline-row { grid-template-columns: minmax(0,1fr); gap: 8px; }
   .inc-timeline-date { text-align: left; padding-left: 20px; }
   .inc-ai-analysis { padding: 12px; }
 }
@@ -169,5 +169,26 @@
   .inc-tab-content { padding: 18px 16px; }
   .inc-tabs { padding: 0 8px; }
   .inc-recent li { grid-template-columns: 1fr; gap: 4px; }
+  /* Nom et progression empiles : cote a cote, un nom long se coupait en
+     plein mot a 320 px. */
+  .inc-startup-heading { flex-direction: column; align-items: stretch; gap: 10px; }
+  .inc-startup-heading h2 { font-size: 21px; }
+  .inc-header-progress { width: 100%; grid-template-columns: auto 1fr; align-items: baseline; column-gap: 8px; text-align: left; }
+  .inc-header-progress > span { font-size: 12px; }
+  .inc-header-progress-bar { grid-column: 1 / -1; }
+  .inc-back { min-height: 40px; margin-bottom: 6px; }
+  .inc-section-heading button { min-height: 40px; }
+  .inc-update-field > p:first-child,.inc-objective-filters button span,.inc-item-meta .semantic-badge { font-size: 11px; }
+}
+/* Le contexte fixe (nom, selecteurs, onglets) occupait jusqu'a 470 px sur un
+   ecran de 568 px. Sur petit ecran, l'en-tete defile avec la page et seule la
+   barre d'onglets (~48 px) reste collee : on change d'onglet sans remonter.
+   display: contents rattache les onglets au panneau, assez haut pour que le
+   sticky tienne sur toute la lecture. */
+@media (max-width: 767px), (max-height: 640px) {
+  .inc-context { position: static; display: contents; }
+  .inc-startup-header { background: var(--surface-muted); border-radius: 16px 16px 0 0; }
+  .inc-tabs { position: sticky; top: var(--inc-top); z-index: 10; background: var(--surface-muted); }
+  .inc-tab-content :is(button,a,input,select,textarea,summary,[tabindex]) { scroll-margin-top: calc(var(--inc-top) + 60px); }
 }
 @media (prefers-reduced-motion: reduce) { .inc-workspace *, .inc-skeletons > div { animation: none; transition: none; } }
