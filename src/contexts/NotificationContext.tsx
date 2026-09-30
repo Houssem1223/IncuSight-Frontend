@@ -270,6 +270,13 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   // doivent pas etre recrees a chaque page chargee.
   const hasMoreRef = useRef(false);
   const loadedPagesRef = useRef(0);
+  // Etat courant de la liste pour les mutations optimistes : savoir, sans
+  // effet de bord dans un updater, si une notification etait non lue.
+  const notificationsRef = useRef<Notification[]>([]);
+
+  useEffect(() => {
+    notificationsRef.current = notifications;
+  }, [notifications]);
 
   const isNotificationsLoading = pendingRequests > 0;
 
@@ -487,8 +494,36 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     };
   }, [token]);
 
+  /**
+   * Optimiste : la notification passe « lue » et le compteur baisse des le clic,
+   * sans attendre le serveur. Le compteur reste celui du backend : liste
+   * complete, il en est derive ; liste partielle, il est decremente puis relu.
+   * En cas d'echec, l'etat est restaure (la notification n'a pas ete lue cote
+   * serveur) et l'erreur remonte a l'appelant.
+   */
   const markNotificationAsRead = useCallback(
     async (id: string) => {
+      const wasUnread = notificationsRef.current.some(
+        (notification) => notification.id === id && notification.isRead !== true,
+      );
+      const setReadState = (isRead: boolean) => {
+        const now = new Date().toISOString();
+        applyNotificationsUpdate((current) =>
+          current.map((notification) =>
+            notification.id === id
+              ? { ...notification, isRead, readAt: isRead ? notification.readAt ?? now : null }
+              : notification,
+          ),
+        );
+        if (hasMoreRef.current) {
+          setUnreadCount((count) => Math.max(0, count + (isRead ? -1 : 1)));
+        }
+      };
+
+      if (wasUnread) {
+        setReadState(true);
+      }
+
       return withLoading(async () => {
         setNotificationsError(null);
         const authToken = getRequiredToken();
@@ -506,26 +541,15 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
           if (updated) {
             applyNotificationsUpdate((current) => upsertNotification(current, updated));
-          } else {
-            const now = new Date().toISOString();
-
-            applyNotificationsUpdate((current) =>
-              current.map((notification) =>
-                notification.id === id
-                  ? {
-                      ...notification,
-                      isRead: true,
-                      readAt: notification.readAt ?? now,
-                    }
-                  : notification,
-              ),
-            );
           }
 
           refreshUnreadCountIfPartial();
 
           return extractCountFromResponse(response);
         } catch (error) {
+          if (wasUnread) {
+            setReadState(false);
+          }
           const message = error instanceof Error ? error.message : "Failed to mark notification";
           setNotificationsError(message);
           throw error;

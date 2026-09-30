@@ -1,12 +1,12 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/src/contexts/AuthContext";
 import { useNotifications } from "@/src/contexts/NotificationContext";
 import type { Notification } from "@/src/types/notification";
 import { getNotificationDetails } from "@/src/lib/notification-details";
 import { resolveNotificationHref } from "./notificationLinks";
+import { useNotificationActivation } from "@/src/hooks/useNotificationActivation";
 
 type NotificationsPanelProps = {
   title?: string;
@@ -76,6 +76,7 @@ export default function NotificationsPanel({
   } = useNotifications();
 
   const [actionId, setActionId] = useState<string | null>(null);
+  const { activate: activateNotification, processingId } = useNotificationActivation();
   const [isMarkingAll, setIsMarkingAll] = useState(false);
 
   const canShow = user?.role === "ADMIN" || user?.role === "EVALUATOR" || user?.role === "STARTUP";
@@ -276,19 +277,16 @@ export default function NotificationsPanel({
 
                   <div className="flex flex-wrap items-center gap-2">
                     {href && (
-                      <Link
-                        className="dashboard-btn rounded-full border border-brand/35 bg-white px-3 py-1 text-xs font-semibold text-brand-strong hover:border-brand"
-                        href={href}
-                        // Ouvrir la ressource vaut prise de connaissance : sans ca, la
-                        // notification resterait « non lue » apres avoir ete traitee.
-                        onClick={() => {
-                          if (unread) {
-                            void handleMarkAsRead(notification.id);
-                          }
-                        }}
+                      // Meme logique que le menu du header : marquer lue (ouvrir
+                      // la ressource vaut prise de connaissance), puis naviguer.
+                      <button
+                        className="dashboard-btn rounded-full border border-brand/35 bg-white px-3 py-1 text-xs font-semibold text-brand-strong hover:border-brand disabled:cursor-wait disabled:opacity-70"
+                        disabled={processingId !== null}
+                        onClick={() => activateNotification(notification)}
+                        type="button"
                       >
                         Consulter
-                      </Link>
+                      </button>
                     )}
                     {unread && (
                       <button

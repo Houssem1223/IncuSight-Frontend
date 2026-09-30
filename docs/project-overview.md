@@ -14,14 +14,12 @@ MEDIANET Incubateur", mentions "by MEDIANET" dans le footer et les écrans d'aut
 MEDIANET est l'organisation cliente/porteuse du produit, IncuSight en est le nom
 produit).
 
-Pitch produit (texte réel de la landing page, `src/components/landing/MissionSection.tsx`) :
-> *"L'incubateur, version produit SaaS."* — *"Notre approche combine exigence
-> institutionnelle et exécution produit. Chaque programme suit un cadre clair :
-> objectifs, jalons, comités d'évaluation, recommandations d'experts et reporting
-> continu pour les équipes dirigeantes."*
-
-Trois piliers affichés : **Accompagnement structuré**, **Évaluation transparente**,
-**Suivi opérationnel**.
+Accroche actuelle de la landing (refonte du 30/09/2026, voir
+[`landing-page.md`](landing-page.md)) : *« Accélérez les décisions d'incubation
+avec une gouvernance claire. »* — *« Une plateforme digitale pour centraliser les
+candidatures, les évaluations et le suivi des startups au sein de l'écosystème
+d'incubation. »* Les chiffres affichés sont ceux publiés par MEDIANET et FoodStart,
+attribués comme tels ; aucune statistique d'IncuSight n'est présentée.
 
 ### Cycle de vie métier (déduit du modèle de données, section 4)
 
@@ -127,13 +125,13 @@ Le rôle le plus riche fonctionnellement — vue d'ensemble complète de l'incub
 
 ### Routes publiques
 
-- `src/app/page.tsx` — landing page complète (`LandingHeader`, `HeroSection`,
-  `MissionSection`, `FeaturesSection`, `IncubationJourneySection`,
-  `WhyChooseSection`, `FinalCTASection`, `FooterSection`).
+- `src/app/page.tsx` — landing page (11 sections, voir [`landing-page.md`](landing-page.md)).
 - **Pas de route `/login` ou `/signup` dédiée** — choix produit assumé : le
-  formulaire vit dans une modale sur la landing (`LandingLoginCard`, `SignupForm`),
-  ouverte via `?auth=login` / `?auth=signup`. `src/app/login/page.tsx` ne fait
-  qu'une redirection vers cette modale (`LANDING_LOGIN_ROUTE`).
+  formulaire (`LandingLoginCard`, `SignupForm`) s'ouvre dans un dialogue de la
+  landing (`LandingAuthDialog`) via `?auth=login` / `?auth=signup` ou
+  `sessionExpired=1`. `src/app/login/page.tsx` ne fait qu'une redirection vers
+  `LANDING_LOGIN_ROUTE`. Un utilisateur connecté qui ouvre `/` est redirigé vers
+  son dashboard (`LandingSessionRedirect`).
 - `forgot-password`, `reset-password` (lit `?token=`), `verify-email` (lit
   `?token=`) — pages dédiées via `AuthPageShell`.
 

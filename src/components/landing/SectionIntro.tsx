@@ -1,39 +1,40 @@
 import type { ReactNode } from "react";
 
 type SectionIntroProps = {
+  id: string;
   eyebrow: string;
   title: ReactNode;
-  description: string;
+  description?: ReactNode;
+  align?: "start" | "center";
   className?: string;
-  tone?: "light" | "dark";
 };
 
+// En-tete commun des sections de la landing ; `id` sert d'aria-labelledby.
 export default function SectionIntro({
+  id,
   eyebrow,
   title,
   description,
+  align = "start",
   className,
-  tone = "light",
 }: SectionIntroProps) {
-  const wrapperClassName = ["max-w-3xl", className].filter(Boolean).join(" ");
-  const eyebrowClassName =
-    tone === "dark"
-      ? "font-mono text-xs uppercase tracking-[0.2em] text-[#FBBF24]"
-      : "font-mono text-xs uppercase tracking-[0.2em] text-brand-strong";
-  const titleClassName =
-    tone === "dark"
-      ? "mt-3 text-2xl font-semibold tracking-tight text-white md:text-4xl"
-      : "mt-3 text-2xl font-semibold tracking-tight text-foreground md:text-4xl";
-  const descriptionClassName =
-    tone === "dark"
-      ? "mt-3 text-sm leading-relaxed text-slate-200 md:text-base"
-      : "mt-3 text-sm leading-relaxed text-foreground-muted md:text-base";
+  const centered = align === "center";
 
   return (
-    <header className={wrapperClassName}>
-      <p className={eyebrowClassName}>{eyebrow}</p>
-      <h2 className={titleClassName}>{title}</h2>
-      <p className={descriptionClassName}>{description}</p>
-    </header>
+    <div
+      className={["max-w-2xl", centered ? "mx-auto text-center" : "", className].filter(Boolean).join(" ")}
+      data-reveal
+    >
+      <p className="lp-eyebrow">{eyebrow}</p>
+      <h2
+        className="mt-4 text-[1.85rem] font-semibold leading-[1.15] tracking-[-0.03em] text-ink sm:text-4xl md:text-[2.6rem]"
+        id={id}
+      >
+        {title}
+      </h2>
+      {description && (
+        <p className="mt-4 text-base leading-relaxed text-ink/60 md:text-lg">{description}</p>
+      )}
+    </div>
   );
 }

@@ -134,6 +134,13 @@
   --color-surface-strong: var(--surface-strong);
   --color-foreground-muted: var(--foreground-muted);
   --color-brand: var(--brand);
+  /* Palette de la landing (docs/landing-page.md) : texte navy, bleu d'appui,
+     vert des statuts positifs, fond neutre. */
+  --color-ink: #071426;
+  --color-ocean: #2563eb;
+  --color-ocean-soft: #eff6ff;
+  --color-leaf: #16a34a;
+  --color-canvas: #f8fafc;
   --color-brand-strong: var(--brand-strong);
   --color-brand-contrast: var(--brand-contrast);
   --color-warning: var(--warning);
@@ -157,9 +164,9 @@ body {
   font-family: var(--font-geist), "Segoe UI", sans-serif;
 }
 
-a {
-  color: inherit;
-}
+/* Pas de regle « a { color: inherit } » ici : hors couche, elle battait tous
+   les utilitaires de couleur poses sur un lien (text-white d'un bouton-lien
+   rendu en navy). Le preflight de Tailwind la declare deja en @layer base. */
 
 ::selection {
   background: var(--primary);

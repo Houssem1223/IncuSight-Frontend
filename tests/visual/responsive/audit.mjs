@@ -73,6 +73,9 @@ if (import.meta.url === `file:///${process.argv[1].replace(/\\/g, "/")}`) {
         await page.navigate(`${APP}${route.path}`);
         const ready = await page.waitFor(route.ready, 8000);
         await page.settle(400, 4000);
+        // Les sections [data-reveal] n'apparaissent qu'au defilement : on parcourt
+        // la page avant de mesurer et de capturer.
+        await page.evaluate("(async () => { if (!document.querySelector('[data-reveal]')) return; for (let y = 0; y < document.documentElement.scrollHeight; y += innerHeight / 2) { scrollTo({ top: y, behavior: 'instant' }); await new Promise((r) => setTimeout(r, 40)); } await new Promise((r) => setTimeout(r, 700)); scrollTo({ top: 0, behavior: 'instant' }); })()");
         const metrics = await page.evaluate(MEASURE);
         const missing = stack.api.log.slice(before).filter((call) => call.status === 404 && !call.path.includes("logo")).map((call) => call.path);
         const entry = { name: route.name, session: route.session, width, height, ready, path: await page.evaluate("location.pathname + location.search"), missing: [...new Set(missing)], exceptions: page.exceptions.slice(exceptionsBefore).map((e) => String(e).split("\n")[0]), ...metrics };

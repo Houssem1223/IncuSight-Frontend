@@ -38,15 +38,19 @@ export async function launchChrome({ port, profileDir }) {
     const { sessionId } = await command("Target.attachToTarget", { targetId: target.targetId, flatten: true });
     const send = (method, params) => command(method, params, sessionId);
     const exceptions = [];
+    // Avertissements et erreurs console (hydratation comprise).
+    const consoleMessages = [];
     let inflight = new Set();
     let lastActivity = Date.now();
     listeners.add((message) => {
       if (message.sessionId !== sessionId) return;
       if (message.method === "Runtime.exceptionThrown") exceptions.push(message.params.exceptionDetails?.exception?.description ?? message.params.exceptionDetails?.text);
+      if (message.method === "Runtime.consoleAPICalled" && ["error", "warning", "assert"].includes(message.params.type)) consoleMessages.push(message.params.type + ": " + message.params.args.map((arg) => arg.value ?? arg.description ?? "").join(" ").slice(0, 300));
+      if (message.method === "Log.entryAdded" && ["error", "warning"].includes(message.params.entry.level)) consoleMessages.push(message.params.entry.level + ": " + message.params.entry.text.slice(0, 300) + (message.params.entry.url ? " (" + message.params.entry.url + ")" : ""));
       if (message.method === "Network.requestWillBeSent") { inflight.add(message.params.requestId); lastActivity = Date.now(); }
       if (message.method === "Network.loadingFinished" || message.method === "Network.loadingFailed") { inflight.delete(message.params.requestId); lastActivity = Date.now(); }
     });
-    await send("Page.enable"); await send("Runtime.enable"); await send("Network.enable");
+    await send("Page.enable"); await send("Runtime.enable"); await send("Network.enable"); await send("Log.enable");
     await send("Network.setBlockedURLs", { urls: ["*socket.io*"] });
 
     const evaluate = async (expression) => {
@@ -94,7 +98,7 @@ export async function launchChrome({ port, profileDir }) {
       await send("Input.dispatchMouseEvent", { type: "mouseReleased", button: "left", clickCount: 1, ...point });
       return true;
     };
-    return { send, evaluate, waitFor, settle, navigate, setViewport, screenshot, tap, exceptions };
+    return { send, evaluate, waitFor, settle, navigate, setViewport, screenshot, tap, exceptions, consoleMessages };
   }
 
   return {

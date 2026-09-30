@@ -21,7 +21,9 @@ const scenarios = [
   { name: "drawer-admin", session: "admin", path: "/dashboard/admin/applications", trigger: "document.querySelector('.app-hamburger')", layer: "document.querySelector('.app-sidebar[data-open=true]')", then: [{ tap: "document.querySelector('.app-account-button')", layer: "document.querySelector('.app-account-popover')", name: "account-popover" }] },
   { name: "drawer-startup", session: "startup", path: "/dashboard/startup", trigger: "document.querySelector('.app-hamburger')", layer: "document.querySelector('.app-sidebar[data-open=true]')" },
   { name: "drawer-evaluator", session: "evaluator", path: "/dashboard/evaluateur", trigger: "document.querySelector('.app-hamburger')", layer: "document.querySelector('.app-sidebar[data-open=true]')" },
-  { name: "notifications-dropdown", session: "admin", path: "/dashboard/admin", trigger: "document.querySelector('.app-header-actions [aria-label=Notifications]')", layer: "document.querySelector('.app-notification-popover')", then: [{ tap: "document.querySelector('.app-notification-popover li button')", layer: DIALOG, name: "notification-detail" }] },
+  { name: "notifications-dropdown", session: "admin", path: "/dashboard/admin", trigger: "document.querySelector('.app-header-actions [aria-label=Notifications]')", layer: "document.querySelector('.app-notification-popover')" },
+  // Clic sur une notification : navigation directe, plus aucune modal de detail.
+  { name: "notification-click", session: "admin", path: "/dashboard/admin", trigger: "document.querySelector('.app-header-actions [aria-label=Notifications]')", layer: "document.querySelector('.app-notification-popover')", then: [{ tap: "document.querySelector('.app-notification-popover li button')", layer: "location.pathname !== '/dashboard/admin' && document.querySelector('.app-sidebar')", name: "notification-navigated" }] },
   { name: "program-create", session: "admin", path: "/dashboard/admin/program", trigger: byText("Creer un programme"), layer: DIALOG },
   { name: "program-edit", session: "admin", path: "/dashboard/admin/program", trigger: byText("Modifier"), layer: DIALOG },
   { name: "user-create", session: "admin", path: "/dashboard/admin/users", trigger: byText("Creer un utilisateur"), layer: DIALOG },
@@ -95,6 +97,7 @@ try {
         await page.waitFor(next.layer, 4000);
         await pause(400);
         const nested = ok ? await page.evaluate(MEASURE_LAYER(next.layer)) : null;
+        if (nested) Object.assign(nested, await page.evaluate("({ location: location.pathname + location.search, dialogs: [...document.querySelectorAll('[role=dialog]')].filter((el) => !el.classList.contains('app-sidebar')).length })"));
         await page.screenshot(join(output, "shots", `${next.name}__${width}.png`));
         results.push({ scenario: next.name, width, tapped: ok, opened: Boolean(nested), ...nested });
         console.log(`${next.name.padEnd(24)} ${width}  ${nested ? JSON.stringify(nested) : "NON OUVERT"}`);

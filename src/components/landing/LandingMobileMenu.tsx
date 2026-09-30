@@ -42,7 +42,7 @@ export default function LandingMobileMenu({ items }: LandingMobileMenuProps) {
         aria-controls={panelId}
         aria-expanded={isOpen}
         aria-label={isOpen ? "Fermer le menu" : "Ouvrir le menu"}
-        className="flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-card text-foreground"
+        className="flex h-10 w-10 items-center justify-center rounded-lg border border-ink/10 bg-white text-ink"
         onClick={() => setIsOpen((current) => !current)}
         ref={toggle}
         type="button"
@@ -53,12 +53,12 @@ export default function LandingMobileMenu({ items }: LandingMobileMenuProps) {
       {isOpen && (
         <nav
           aria-label="Navigation principale"
-          className="absolute right-0 top-12 w-60 max-w-[calc(100vw-2rem)] rounded-xl border border-border bg-card p-2 shadow-xl"
+          className="lp-enter absolute right-0 top-12 w-64 max-w-[calc(100vw-2rem)] rounded-2xl border border-ink/10 bg-white p-2 shadow-[0_24px_48px_-24px_rgba(7,20,38,0.4)]"
           id={panelId}
         >
           {items.map((item) => (
             <a
-              className="flex min-h-11 items-center rounded-lg px-3 text-sm font-medium text-foreground hover:bg-background-accent"
+              className="flex min-h-11 items-center rounded-lg px-3 text-sm font-medium text-ink hover:bg-canvas"
               href={item.href}
               key={item.label}
               onClick={() => setIsOpen(false)}
@@ -67,7 +67,7 @@ export default function LandingMobileMenu({ items }: LandingMobileMenuProps) {
             </a>
           ))}
           <Link
-            className="mt-1 flex min-h-11 items-center justify-center rounded-lg bg-[var(--action-background)] px-3 text-sm font-semibold text-[var(--action-foreground)]"
+            className="mt-1 flex min-h-11 items-center justify-center rounded-lg bg-brand px-3 text-sm font-semibold text-white"
             href={LANDING_LOGIN_ROUTE}
             onClick={() => setIsOpen(false)}
           >

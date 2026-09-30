@@ -56,5 +56,5 @@ export const routes = [
 ];
 
 export const mobileViewports = [[320, 568], [360, 800], [375, 812], [390, 844], [412, 915], [430, 932]];
-export const otherViewports = [[768, 1024], [1280, 720], [1440, 900]];
-export const screenshotWidths = new Set([320, 360, 390, 768, 1440]);
+export const otherViewports = [[768, 1024], [1024, 768], [1280, 720], [1440, 900]];
+export const screenshotWidths = new Set([320, 360, 390, 430, 768, 1024, 1280, 1440]);

@@ -5,6 +5,7 @@ import "./incubation-workspace.css";
 import "./dashboard-shell.css";
 import "./pwa.css";
 import "./responsive.css";
+import "./landing.css";
 import { AuthProvider } from "../contexts/AuthContext";
 import { UserProvider } from "../contexts/UserContext";
 import AuthSessionRedirect from "../components/auth/AuthSessionRedirect";
@@ -21,10 +22,14 @@ const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
 });
 
+// URL publique du deploiement, pour les liens absolus Open Graph. Sans elle,
+// Next retombe sur localhost : a renseigner en production.
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+
 export const metadata: Metadata = {
+  metadataBase: siteUrl ? new URL(siteUrl) : undefined,
   title: "IncuSight | MEDIANET Incubateur",
   description: "Plateforme digitale de gestion et suivi des startups - MEDIANET Incubator",
-  generator: "v0.app",
   // Le manifest (src/app/manifest.ts) est lie automatiquement par Next.
   applicationName: "IncuSight",
   appleWebApp: {

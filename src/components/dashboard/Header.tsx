@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { createPortal } from "react-dom";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Bell, Menu, Moon, Sparkles, Sun } from "lucide-react";
 import { useNotifications } from "@/src/contexts/NotificationContext";
+import { useNotificationActivation } from "@/src/hooks/useNotificationActivation";
 import { dashboardNavByRole } from "@/src/lib/dashboard-nav";
 import { User } from "@/src/types/auth";
 import type { Notification } from "@/src/types/notification";
@@ -61,11 +61,9 @@ export default function Header({
     isNotificationsLoading,
     fetchMyNotifications,
     fetchUnreadCount,
-    markNotificationAsRead,
   } = useNotifications();
+  const { activate: activateNotification, processingId } = useNotificationActivation();
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
-  const [activeNotification, setActiveNotification] = useState<Notification | null>(null);
-  const [isMounted, setIsMounted] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
   const notificationsRef = useRef<HTMLDivElement | null>(null);
   const canShowNotifications = user.role === "ADMIN" || user.role === "EVALUATOR" || user.role === "STARTUP";
@@ -112,33 +110,11 @@ export default function Header({
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
-      setIsMounted(true);
-    });
-
-    return () => window.cancelAnimationFrame(frame);
-  }, []);
-
-  useEffect(() => {
-    const frame = window.requestAnimationFrame(() => {
       setIsNotificationsOpen(false);
-      setActiveNotification(null);
     });
 
     return () => window.cancelAnimationFrame(frame);
   }, [pathname]);
-
-  useEffect(() => {
-    if (!activeNotification) {
-      return;
-    }
-
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-
-    return () => {
-      document.body.style.overflow = previousOverflow;
-    };
-  }, [activeNotification]);
 
   const recentNotifications = useMemo(() => {
     const sorted = [...notifications].sort((left, right) => {
@@ -172,29 +148,13 @@ export default function Header({
     void fetchUnreadCount();
   };
 
+  // Plus de modal de detail : un clic ouvre directement la ressource, avec la
+  // meme logique que la page Notifications (useNotificationActivation).
   const handleOpenNotification = (notification: Notification) => {
-    setActiveNotification(
-      notification.isRead === true ? notification : { ...notification, isRead: true },
-    );
-    setIsNotificationsOpen(false);
-
-    if (notification.isRead === true) {
-      return;
-    }
-
-    void markNotificationAsRead(notification.id).then(() => {
-      void fetchUnreadCount();
+    activateNotification(notification, {
+      onBeforeNavigate: () => setIsNotificationsOpen(false),
     });
   };
-
-  const handleCloseNotification = () => {
-    setActiveNotification(null);
-  };
-
-  const activeType = useMemo(
-    () => (activeNotification?.type ? activeNotification.type : null),
-    [activeNotification],
-  );
 
   const pageTitle = useMemo(() => {
     const routes: Record<string, string> = {
@@ -321,7 +281,7 @@ export default function Header({
                         {unreadCount} non lues
                       </span>
                       <Link
-                        className="text-[11px] font-semibold text-orange-400 hover:underline"
+                        className="text-[11px] font-semibold text-orange-400 hover:underline max-md:inline-flex max-md:min-h-10 max-md:items-center max-md:px-2"
                         href={notificationsHref}
                         onClick={() => setIsNotificationsOpen(false)}
                       >
@@ -354,22 +314,37 @@ export default function Header({
                             key={notification.id}
                             className={`rounded-xl border text-xs transition ${
                               unread
-                                ? "border-amber-400/30 bg-amber-500/10"
-                                : "border-slate-700"
+                                ? darkMode
+                                  ? "border-amber-400/30 bg-amber-500/10"
+                                  : "border-orange-200 bg-orange-50/70"
+                                : darkMode
+                                  ? "border-slate-700"
+                                  : "border-slate-200 bg-white"
                             }`}
                           >
                             <button
-                              className="w-full rounded-xl px-3 py-2 text-left hover:bg-slate-700/40"
+                              aria-busy={processingId === notification.id}
+                              className={`w-full rounded-xl px-3 py-2.5 text-left transition disabled:cursor-wait ${
+                                darkMode ? "hover:bg-slate-700/40" : "hover:bg-slate-50"
+                              }`}
+                              disabled={processingId !== null}
                               onClick={() => handleOpenNotification(notification)}
                               type="button"
                             >
-                              <p className="text-sm font-semibold">
-                                {getNotificationTitle(notification)}
+                              <p className="flex items-start gap-2 text-sm font-semibold">
+                                {unread && (
+                                  <span
+                                    aria-hidden="true"
+                                    className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-brand"
+                                  />
+                                )}
+                                <span className="min-w-0">{getNotificationTitle(notification)}</span>
+                                {unread && <span className="sr-only">(non lue)</span>}
                               </p>
                               {message && (
-                                <p className="mt-1 text-xs text-slate-300">{message}</p>
+                                <p className={`mt-1 text-xs ${darkMode ? "text-slate-300" : "text-slate-600"}`}>{message}</p>
                               )}
-                              <div className="mt-2 text-[11px] text-slate-400">
+                              <div className={`mt-2 text-[11px] ${darkMode ? "text-slate-400" : "text-slate-500"}`}>
                                 {formatDate(notification.createdAt)}
                               </div>
                             </button>
@@ -395,74 +370,6 @@ export default function Header({
           )}
         </div>
       </div>
-
-      {isMounted &&
-        activeNotification &&
-        createPortal(
-          <div
-            aria-modal="true"
-            className="fixed inset-0 z-[100] overflow-y-auto"
-            onClick={handleCloseNotification}
-            role="dialog"
-          >
-            <div className="fixed inset-0 bg-slate-900/45 backdrop-blur-md" />
-            {/* min-h-full + defilement du conteneur : un message long reste
-                lisible en entier, y compris sous la barre d'adresse mobile. */}
-            <div className="relative z-10 flex min-h-full items-center justify-center p-4 md:p-8">
-              <div
-                className={`w-full max-w-lg rounded-2xl border p-5 shadow-[var(--shadow-soft)] ${
-                  darkMode
-                    ? "border-slate-700 bg-slate-800 text-white"
-                    : "border-slate-200 bg-white text-slate-900"
-                }`}
-                onClick={(event) => event.stopPropagation()}
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.16em] text-orange-400">
-                      Notification
-                    </p>
-                    <h3 className="mt-2 text-lg font-semibold">
-                      {getNotificationTitle(activeNotification)}
-                    </h3>
-                  </div>
-
-                  <button
-                    className={`min-h-10 shrink-0 rounded-full border px-4 py-1 text-xs font-semibold md:min-h-0 md:px-3 ${
-                      darkMode
-                        ? "border-slate-700 bg-slate-700 text-white"
-                        : "border-slate-200 bg-white text-slate-900"
-                    }`}
-                    onClick={handleCloseNotification}
-                    type="button"
-                  >
-                    Fermer
-                  </button>
-                </div>
-
-                {getNotificationMessage(activeNotification) && (
-                  <p className={`mt-3 text-sm ${darkMode ? "text-slate-300" : "text-slate-500"}`}>
-                    {getNotificationMessage(activeNotification)}
-                  </p>
-                )}
-
-                <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-foreground-muted">
-                  {activeType && (
-                    <span className={`rounded-full border px-2 py-0.5 ${
-                      darkMode ? "border-slate-600 text-slate-300" : "border-slate-200 text-slate-500"
-                    }`}>
-                      {activeType}
-                    </span>
-                  )}
-                  <span className={darkMode ? "text-slate-400" : "text-slate-500"}>
-                    {formatDate(activeNotification.createdAt)}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>,
-          document.body,
-        )}
     </header>
   );
 }

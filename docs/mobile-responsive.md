@@ -91,7 +91,7 @@ Chemins relatifs à `src/`. Validation : `audit.mjs` et `scenarios.mjs` (§4).
 | Landing | Aucune navigation sous 768 px | M | `hidden md:flex` sans alternative | Menu mobile (rubriques + « Se connecter ») | `landing/LandingHeader.tsx`, `landing/LandingMobileMenu.tsx` |
 | Toutes | 592 cibles < 24 px (fermer, retirer « x » 16 px, « Voir tout », liens, `summary`…) | M | Tailles desktop | 40 px sous 768 px (§2) | `app/dashboard-shell.css`, `app/responsive.css`, `ui/button.tsx`, `ui/forms/FormModal.tsx`, `dashboard/ConfirmDialog.tsx`, composants concernés |
 | Modales | « x » de 30 px qui disparaît en faisant défiler | M | En-tête dans la zone défilante | En-tête collant, bouton 40 px | `ui/forms/FormModal.tsx`, `dashboard/ConfirmDialog.tsx` |
-| Détail d'une notification | Message long illisible (pas de défilement) | M | `fixed` + `min-h-screen` sans `overflow` | Conteneur défilant, `min-h-full` | `dashboard/Header.tsx` |
+| Détail d'une notification | Message long illisible (pas de défilement) | M | `fixed` + `min-h-screen` sans `overflow` | Conteneur défilant, `min-h-full` | `dashboard/Header.tsx` *(modal supprimée le 30/09/2026, voir [`notifications-frontend.md`](notifications-frontend.md))* |
 | Dashboard admin | Dates de l'axe X superposées | M | Intervalle fixe calculé pour le desktop | `preserveStartEnd` + `minTickGap` sous 640 px seulement | `admin/dashboard/TimeseriesCard.tsx`, `hooks/useIsNarrowScreen.ts` |
 | Dashboard admin | Donut + légende débordent à 320 | m | Ligne flex non repliable | Colonne sous 640 px | `admin/dashboard/DecisionsDonut.tsx` |
 | Dashboard admin | 4 actions rapides empilées (440 px) | m | 1 colonne | 2 colonnes compactes | `admin/dashboard/QuickActionsBar.tsx` |
@@ -135,8 +135,7 @@ de fermeture visible (40×40), carte PWA recouverte par le tiroir.
   d'incubation passent à 11–12 px sur mobile.
 - **Badges décalés** (`-right-2 -top-2`) des compteurs : ils sortent de leur
   bouton de quelques pixels par conception, identiquement sur desktop.
-- **Badge d'icône du parcours** (landing, section Journey) : positionné sur la
-  ligne plutôt que sur la tuile du numéro, y compris sur desktop ; non modifié.
-- **Ancres de la landing sur `/startups`** (`#features`…) : pointent vers des
-  sections absentes de cette page, comportement desktop existant.
+- Les points « landing » ci-dessus (sections Mission et Journey, ancres
+  `#features` depuis `/startups`) sont caducs : la landing a été refaite le
+  30/09/2026, voir [`landing-page.md`](landing-page.md).
 - Tests sur appareils réels (Safari iOS, Chrome Android) : émulés ici.
